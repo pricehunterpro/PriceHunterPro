@@ -154,40 +154,71 @@ def _notify_new_alerts() -> None:
                 WHERE price > 0
                   AND scraped_at < NOW() - INTERVAL '12 hours'
                 GROUP BY store_product_id
+            ),
+            market AS (
+                SELECT p2.sku_normalized,
+                       AVG(sp2.current_price) AS avg_market_price,
+                       COUNT(DISTINCT sp2.store) AS store_count
+                FROM store_products sp2
+                JOIN products p2 ON p2.id = sp2.product_id
+                WHERE sp2.in_stock = true
+                  AND sp2.current_price > 0
+                  AND p2.sku_normalized IS NOT NULL
+                GROUP BY p2.sku_normalized
+            ),
+            candidates AS (
+                -- Un row por (SKU o producto único): la mejor oferta por SKU
+                SELECT DISTINCT ON (COALESCE(p.sku_normalized, sp.id))
+                    sp.id, sp.store, p.name, sp.url,
+                    COALESCE(p.image_url, '') AS image_url,
+                    sp.current_price, sp.original_price,
+                    sp.discount_percentage, p.sku_normalized
+                FROM store_products sp
+                JOIN products p ON p.id = sp.product_id
+                WHERE sp.in_stock = true
+                  AND sp.current_price >= 50
+                  AND sp.original_price >= 100
+                  AND (sp.original_price - sp.current_price) >= 100
+                  AND sp.original_price < sp.current_price * 12
+                ORDER BY COALESCE(p.sku_normalized, sp.id), sp.current_price ASC
             )
-            SELECT sp.id, sp.store, p.name, sp.url,
-                   COALESCE(p.image_url, '')                              AS image_url,
-                   CAST(sp.current_price AS float)                        AS current_price,
+            SELECT c.id, c.store, c.name, c.url,
+                   c.image_url,
+                   CAST(c.current_price AS float)                          AS current_price,
                    CAST(COALESCE(
                        NULLIF(h.avg_hist_price, 0),
-                       sp.original_price, 0
-                   ) AS float)                                            AS avg_hist_price,
-                   COALESCE(h.hist_count, 0)                              AS hist_count
-            FROM store_products sp
-            JOIN products p ON p.id = sp.product_id
-            LEFT JOIN hist h ON h.store_product_id = sp.id
-            WHERE sp.current_price >= 20
-              AND sp.original_price >= 50
-              AND sp.in_stock = true
-              AND (
-                -- Alerta histórica: 15%+ bajo el promedio histórico (≥1 registro)
+                       m.avg_market_price,
+                       c.original_price, 0
+                   ) AS float)                                             AS avg_hist_price,
+                   COALESCE(h.hist_count, 0)                              AS hist_count,
+                   CAST(COALESCE(m.avg_market_price, 0) AS float)         AS avg_market_price,
+                   COALESCE(m.store_count, 0)                             AS store_count
+            FROM candidates c
+            LEFT JOIN hist h ON h.store_product_id = c.id
+            LEFT JOIN market m ON m.sku_normalized = c.sku_normalized
+            WHERE (
+                -- Alerta histórica: 15%+ bajo el promedio histórico
                 (h.hist_count >= 1
                  AND h.avg_hist_price > 0
-                 AND sp.current_price < h.avg_hist_price * 0.85)
+                 AND c.current_price < h.avg_hist_price * 0.85)
                 OR
-                -- Alerta inmediata: descuento extremo ≥70% vs precio original
-                (sp.discount_percentage >= 70
-                 AND sp.original_price > 0
-                 AND sp.current_price < sp.original_price * 0.30)
-              )
-            ORDER BY (1 - sp.current_price / COALESCE(
-                NULLIF(h.avg_hist_price, 0), sp.original_price
-            )) DESC
-            LIMIT 20
+                -- Alerta inmediata: descuento ≥50% con ahorro real ≥S/100
+                (c.discount_percentage >= 50
+                 AND c.original_price > 0)
+                OR
+                -- Alerta de mercado: ≥15% bajo el promedio cross-tienda (≥2 tiendas)
+                (m.store_count >= 2
+                 AND m.avg_market_price > 0
+                 AND c.current_price < m.avg_market_price * 0.85)
+            )
+            ORDER BY (
+                c.discount_percentage *
+                LEAST(CAST(c.original_price - c.current_price AS float), 3000)
+            ) DESC
+            LIMIT 100
         """)).fetchall()
 
     new_alerts = []
-    pending_keys = []
     for r_row in rows:
         key = f"tg_notified:{r_row.id}"
         if r.exists(key):
@@ -195,25 +226,26 @@ def _notify_new_alerts() -> None:
         ref_price = r_row.avg_hist_price if r_row.avg_hist_price else 0
         diff = round((1 - r_row.current_price / ref_price) * 100, 1) if ref_price else 0
         new_alerts.append({
-            "name": r_row.name,
-            "store": r_row.store,
-            "imageUrl": r_row.image_url or "",
-            "currentPrice": r_row.current_price,
+            "id":            r_row.id,
+            "name":          r_row.name,
+            "store":         r_row.store,
+            "imageUrl":      r_row.image_url or "",
+            "currentPrice":  r_row.current_price,
             "avgMarketPrice": ref_price,
-            "mktDiffPct": diff,
-            "url": r_row.url or "",
+            "mktDiffPct":    diff,
+            "url":           r_row.url or "",
+            "_key":          key,
         })
-        pending_keys.append(key)
 
     channels = [c for c in [settings.telegram_channel_dev, settings.telegram_channel_prd] if c]
-    sent_any = False
-    for channel in channels:
-        if notify_new_alerts(new_alerts, channel_id=channel):
-            sent_any = True
-
-    if sent_any:
-        for key in pending_keys:
-            r.setex(key, 86400, "1")
+    for alert in new_alerts:
+        ok_any = False
+        for channel in channels:
+            if notify_new_alerts([alert], channel_id=channel):
+                ok_any = True
+        # Marcar en Redis SOLO si se envió realmente — evita silenciar deals no enviados
+        if ok_any:
+            r.setex(alert["_key"], 86400, "1")
 
 
 @app.task(name="publish_top_deals")
