@@ -1,4 +1,5 @@
 from logging.config import fileConfig
+from urllib.parse import urlsplit
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -8,8 +9,21 @@ from app.models import Base
 
 settings = get_settings()
 
+_LOCAL_DB_HOSTS = {"localhost", "127.0.0.1", "postgres", "db", ""}
+
+
+def _sync_url(url: str) -> str:
+    # asyncpg -> psycopg2 (Alembic corre en modo síncrono)
+    sync = url.replace("postgresql+asyncpg://", "postgresql://")
+    host = urlsplit(sync).hostname or ""
+    if host not in _LOCAL_DB_HOSTS and "sslmode=" not in sync:
+        sync += ("&" if "?" in sync else "?") + "sslmode=require"
+    return sync
+
+
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("postgresql+asyncpg://", "postgresql://"))
+# %% escapa el % ante la interpolación de ConfigParser (p. ej. %24 en el password)
+config.set_main_option("sqlalchemy.url", _sync_url(settings.database_url).replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
