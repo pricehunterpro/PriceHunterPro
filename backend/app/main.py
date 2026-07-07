@@ -6,6 +6,8 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.deals import router as deals_router
 from app.api.v1.monitoring import router as monitoring_router
 from app.api.v1.tiktok import router as tiktok_router
+from app.api.v1.supervision import router as supervision_router
+from app.api.v1.publicador import router as publicador_router
 from app.api.v1.products import router as products_router
 from app.api.v1.watchlist import router as watchlist_router
 from app.core.config import get_settings
@@ -27,6 +29,8 @@ app.include_router(auth_router,        prefix="/api/v1")
 app.include_router(deals_router,       prefix="/api/v1")
 app.include_router(monitoring_router,  prefix="/api/v1")
 app.include_router(tiktok_router,      prefix="/api/v1")
+app.include_router(supervision_router, prefix="/api/v1")
+app.include_router(publicador_router,  prefix="/api/v1")
 app.include_router(products_router,    prefix="/api/v1")
 app.include_router(watchlist_router,   prefix="/api/v1")
 

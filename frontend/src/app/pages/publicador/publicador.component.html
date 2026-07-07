@@ -1,0 +1,164 @@
+<!-- Header -->
+<section class="pub-header">
+  <div>
+    <h2>🤖 Publicador IA</h2>
+    <p>Genera, aprueba, programa y publica contenido IA para Telegram, Facebook, Instagram y TikTok. Nada se publica sin tu aprobación.</p>
+  </div>
+  <div class="pub-header-actions">
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+    <button class="ghost-btn reload" (click)="reload()">⟳ Recargar desde BD</button>
+  </div>
+</section>
+
+<!-- KPIs -->
+<section class="kpi-grid" *ngIf="kpis as k">
+  <article class="kpi"><span class="kpi-n">{{ k.total }}</span><span class="kpi-l">Total</span></article>
+  <article class="kpi warn"><span class="kpi-n">{{ k.pendientes }}</span><span class="kpi-l">Pendientes</span></article>
+  <article class="kpi info"><span class="kpi-n">{{ k.generados }}</span><span class="kpi-l">Generados</span></article>
+  <article class="kpi ok"><span class="kpi-n">{{ k.aprobados }}</span><span class="kpi-l">Aprobados</span></article>
+  <article class="kpi accent"><span class="kpi-n">{{ k.programados }}</span><span class="kpi-l">Programados</span></article>
+  <article class="kpi accent"><span class="kpi-n">{{ k.publicados }}</span><span class="kpi-l">Publicados</span></article>
+  <article class="kpi bad"><span class="kpi-n">{{ k.errores }}</span><span class="kpi-l">Errores</span></article>
+</section>
+
+<!-- Filtros -->
+<section class="pub-filters">
+  <div class="select-box">
+    <select [(ngModel)]="filtroCanal" (change)="load()">
+      <option value="">Todos los canales</option>
+      <option *ngFor="let c of allCanales" [value]="c">{{ c }}</option>
+    </select>
+  </div>
+  <div class="select-box">
+    <select [(ngModel)]="filtroEstado" (change)="load()">
+      <option value="">Todos los estados</option>
+      <option *ngFor="let e of estados" [value]="e">{{ e }}</option>
+    </select>
+  </div>
+</section>
+
+<div *ngIf="loading" class="pub-loading">Cargando publicaciones…</div>
+
+<!-- Lista -->
+<section class="pub-list" *ngIf="!loading">
+  <article class="pub-card" *ngFor="let it of items">
+
+    <!-- Imagen + score -->
+    <div class="pub-media">
+      <img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.titulo" loading="lazy"/>
+      <div *ngIf="!it.imageUrl" class="pub-noimg">Sin imagen</div>
+      <span class="badge score" [ngClass]="scoreClass(it.scoreIA)">IA {{ it.scoreIA }}</span>
+    </div>
+
+    <div class="pub-body">
+
+      <!-- Badges: canales + estado + store + descuento -->
+      <div class="pub-badges">
+        <span *ngFor="let c of it.canalesSeleccionados" class="badge canal" [ngClass]="canalClass(c)">{{ c }}</span>
+        <span class="badge estado" [ngClass]="estadoClass(it.estado)">{{ it.estado }}</span>
+        <span class="badge store">{{ it.store }}</span>
+        <span class="badge disc" *ngIf="it.discountPct">-{{ it.discountPct }}%</span>
+      </div>
+
+      <!-- Título -->
+      <h3>{{ it.titulo }}</h3>
+
+      <!-- Precio -->
+      <p class="pub-price">
+        <span class="now">S/{{ it.currentPrice | number:'1.2-2' }}</span>
+        <span class="was" *ngIf="it.originalPrice">S/{{ it.originalPrice | number:'1.2-2' }}</span>
+      </p>
+
+      <!-- Contenido generado (solo si no está editando) -->
+      <ng-container *ngIf="editId !== it.id">
+        <div *ngIf="it.estado === 'Pendiente'" class="pub-pending-hint">
+          Haz clic en <strong>Generar</strong> para crear el contenido IA
+        </div>
+        <pre class="pub-preview" *ngIf="it.contenido">{{ it.contenido }}</pre>
+
+        <!-- Hashtags -->
+        <div class="pub-hashtags" *ngIf="it.hashtags?.length">
+          <span *ngFor="let h of it.hashtags" class="htag">{{ h }}</span>
+        </div>
+      </ng-container>
+
+      <!-- Panel editar -->
+      <div class="inline-panel" *ngIf="editId === it.id">
+        <label class="panel-label">Contenido</label>
+        <textarea [(ngModel)]="editContenido" rows="7"></textarea>
+
+        <label class="panel-label">Hashtags (separados por espacio)</label>
+        <input type="text" [(ngModel)]="editHashtags" placeholder="#ofertasperu #pricehunterpro…"/>
+
+        <label class="panel-label">Canales</label>
+        <div class="canal-toggles">
+          <button *ngFor="let c of allCanales"
+                  class="canal-toggle" [ngClass]="canalClass(c)"
+                  [class.active]="editCanales.includes(c)"
+                  (click)="toggleEditCanal(c)">{{ c }}</button>
+        </div>
+
+        <div class="inline-actions">
+          <button class="btn primary" (click)="confirmEdit()">Guardar</button>
+          <button class="btn" (click)="cancelInline()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Panel programar -->
+      <div class="inline-panel" *ngIf="programarId === it.id">
+        <label class="panel-label">Fecha y hora de publicación</label>
+        <input type="datetime-local" [(ngModel)]="programarFecha"/>
+        <div class="inline-actions">
+          <button class="btn primary" (click)="confirmProgramar()">Confirmar</button>
+          <button class="btn" (click)="cancelInline()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Meta -->
+      <p class="pub-meta" *ngIf="it.estado === 'Programado' && it.fechaProgramada">
+        🕒 Programado: {{ it.fechaProgramada }}
+      </p>
+      <p class="pub-meta ok" *ngIf="it.estado === 'Publicado' && it.fechaPublicacion">
+        ✅ Publicado: {{ it.fechaPublicacion }}
+      </p>
+      <p class="pub-meta info" *ngIf="it.generadoAt && it.estado !== 'Pendiente'">
+        ⚡ Generado: {{ it.generadoAt | date:'short' }}
+      </p>
+
+      <!-- Acciones -->
+      <div class="pub-actions" *ngIf="editId !== it.id && programarId !== it.id">
+
+        <!-- Generar (solo Pendiente o Error) -->
+        <button class="btn gen"
+                *ngIf="it.estado === 'Pendiente' || it.estado === 'Error'"
+                (click)="generar(it)"
+                [disabled]="isGenerando(it.id)">
+          {{ isGenerando(it.id) ? '⏳ Generando…' : '⚡ Generar' }}
+        </button>
+
+        <!-- Aprobar (solo Generado) -->
+        <button class="btn ok"
+                *ngIf="it.estado === 'Generado'"
+                (click)="aprobar(it)">Aprobar</button>
+
+        <!-- Programar (Aprobado) -->
+        <button class="btn"
+                *ngIf="it.estado === 'Aprobado'"
+                (click)="openProgramar(it)">Programar</button>
+
+        <!-- Publicar (Aprobado o Programado) -->
+        <button class="btn primary"
+                *ngIf="it.estado === 'Aprobado' || it.estado === 'Programado'"
+                (click)="publicar(it)">Publicar</button>
+
+        <!-- Editar (siempre excepto Publicado) -->
+        <button class="btn"
+                *ngIf="it.estado !== 'Publicado'"
+                (click)="openEdit(it)">Editar</button>
+
+      </div>
+    </div>
+  </article>
+
+  <p *ngIf="!items.length" class="pub-empty">No hay publicaciones para este filtro.</p>
+</section>

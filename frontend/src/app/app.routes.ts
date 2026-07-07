@@ -7,6 +7,8 @@ import { MotorIaComponent } from './pages/motor-ia/motor-ia.component';
 import { ComingSoonComponent } from './pages/coming-soon/coming-soon.component';
 import { CentroMonitoreoComponent } from './pages/centro-monitoreo/centro-monitoreo.component';
 import { TiktokFactoryComponent } from './pages/tiktok-factory/tiktok-factory.component';
+import { SupervisionComponent } from './pages/supervision/supervision.component';
+import { PublicadorComponent } from './pages/publicador/publicador.component';
 
 export const routes: Routes = [
   {
@@ -20,6 +22,8 @@ export const routes: Routes = [
       { path: 'motor-ia',                   component: MotorIaComponent },
       { path: 'automatizacion/monitoreo',   component: CentroMonitoreoComponent },
       { path: 'marketing/tiktok-factory',   component: TiktokFactoryComponent },
+      { path: 'marketing/supervision',      component: SupervisionComponent },
+      { path: 'marketing/publicador-ia',    component: PublicadorComponent },
       { path: '**',                         component: ComingSoonComponent },
     ],
   },

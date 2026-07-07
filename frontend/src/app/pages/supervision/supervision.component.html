@@ -1,0 +1,110 @@
+<!-- Header -->
+<section class="sup-header">
+  <div>
+    <h2>📢 Bandeja de Supervisión</h2>
+    <p>Revisa, aprueba, programa o publica el contenido generado por PriceHunter Pro. Nada se publica sin tu aprobación.</p>
+  </div>
+  <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+</section>
+
+<!-- KPIs -->
+<section class="kpi-grid" *ngIf="kpis as k">
+  <article class="kpi"><span class="kpi-n">{{ k.total }}</span><span class="kpi-l">Total</span></article>
+  <article class="kpi warn"><span class="kpi-n">{{ k.pendientes }}</span><span class="kpi-l">Pendientes</span></article>
+  <article class="kpi info"><span class="kpi-n">{{ k.enRevision }}</span><span class="kpi-l">En revisión</span></article>
+  <article class="kpi ok"><span class="kpi-n">{{ k.aprobados }}</span><span class="kpi-l">Aprobados</span></article>
+  <article class="kpi accent"><span class="kpi-n">{{ k.programados }}</span><span class="kpi-l">Programados</span></article>
+  <article class="kpi accent"><span class="kpi-n">{{ k.publicados }}</span><span class="kpi-l">Publicados</span></article>
+  <article class="kpi bad"><span class="kpi-n">{{ k.rechazados }}</span><span class="kpi-l">Rechazados</span></article>
+  <article class="kpi bad"><span class="kpi-n">{{ k.errores }}</span><span class="kpi-l">Errores</span></article>
+</section>
+
+<!-- Filtros -->
+<section class="sup-filters">
+  <div class="select-box">
+    <select [(ngModel)]="filtroCanal" (change)="load()">
+      <option value="">Todos los canales</option>
+      <option *ngFor="let c of canales" [value]="c">{{ c }}</option>
+    </select>
+  </div>
+  <div class="select-box">
+    <select [(ngModel)]="filtroEstado" (change)="load()">
+      <option value="">Todos los estados</option>
+      <option *ngFor="let e of estados" [value]="e">{{ e }}</option>
+    </select>
+  </div>
+</section>
+
+<div *ngIf="loading" class="sup-loading">Cargando publicaciones…</div>
+
+<!-- Lista -->
+<section class="sup-list" *ngIf="!loading">
+  <article class="sup-card" *ngFor="let it of items">
+    <div class="sup-media">
+      <img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.titulo" loading="lazy"/>
+      <div *ngIf="!it.imageUrl" class="sup-noimg">Sin imagen</div>
+      <span class="badge score" [ngClass]="scoreClass(it.scoreIA)">Score {{ it.scoreIA }}</span>
+    </div>
+
+    <div class="sup-body">
+      <div class="sup-badges">
+        <span class="badge canal" [ngClass]="canalClass(it.canal)">{{ it.canal }}</span>
+        <span class="badge estado" [ngClass]="estadoClass(it.estado)">{{ it.estado }}</span>
+        <span class="badge store">{{ it.store }}</span>
+        <span class="badge disc" *ngIf="it.discountPct">-{{ it.discountPct }}%</span>
+      </div>
+
+      <h3>{{ it.titulo }}</h3>
+      <p class="sup-price">
+        <span class="now">S/{{ it.currentPrice | number:'1.2-2' }}</span>
+        <span class="was" *ngIf="it.originalPrice">S/{{ it.originalPrice | number:'1.2-2' }}</span>
+      </p>
+
+      <!-- Preview del contenido -->
+      <pre class="sup-preview" *ngIf="editId !== it.id">{{ it.contenido }}</pre>
+
+      <!-- Editar -->
+      <div class="inline-panel" *ngIf="editId === it.id">
+        <textarea [(ngModel)]="editContenido" rows="6"></textarea>
+        <div class="inline-actions">
+          <button class="btn primary" (click)="confirmEdit()">Guardar</button>
+          <button class="btn ghost" (click)="cancelInline()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Rechazar -->
+      <div class="inline-panel" *ngIf="rejectId === it.id">
+        <input type="text" [(ngModel)]="rejectMotivo" placeholder="Motivo del rechazo (opcional)"/>
+        <div class="inline-actions">
+          <button class="btn bad" (click)="confirmReject()">Confirmar rechazo</button>
+          <button class="btn ghost" (click)="cancelInline()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- Programar -->
+      <div class="inline-panel" *ngIf="scheduleId === it.id">
+        <input type="datetime-local" [(ngModel)]="scheduleFecha"/>
+        <div class="inline-actions">
+          <button class="btn primary" (click)="confirmSchedule()">Confirmar programación</button>
+          <button class="btn ghost" (click)="cancelInline()">Cancelar</button>
+        </div>
+      </div>
+
+      <p class="sup-meta" *ngIf="it.estado === 'Programado' && it.fechaProgramada">🕒 Programado: {{ it.fechaProgramada }}</p>
+      <p class="sup-meta ok" *ngIf="it.estado === 'Publicado' && it.fechaPublicacion">✅ Publicado: {{ it.fechaPublicacion }}</p>
+      <p class="sup-meta bad" *ngIf="it.estado === 'Rechazado'">✖ Rechazado{{ it.motivoRechazo ? ': ' + it.motivoRechazo : '' }}</p>
+
+      <!-- Acciones -->
+      <div class="sup-actions" *ngIf="editId !== it.id && rejectId !== it.id && scheduleId !== it.id">
+        <button class="btn ok"     (click)="approve(it)"      [disabled]="it.estado === 'Publicado'">Aprobar</button>
+        <button class="btn bad"    (click)="openReject(it)"   [disabled]="it.estado === 'Publicado'">Rechazar</button>
+        <button class="btn ghost"  (click)="openEdit(it)">Editar</button>
+        <button class="btn ghost"  (click)="openSchedule(it)" [disabled]="it.estado === 'Publicado'">Programar</button>
+        <button class="btn primary" (click)="publish(it)"
+                [disabled]="it.estado !== 'Aprobado' && it.estado !== 'Programado'">Publicar</button>
+      </div>
+    </div>
+  </article>
+
+  <p *ngIf="!items.length" class="sup-empty">No hay publicaciones para este filtro.</p>
+</section>
