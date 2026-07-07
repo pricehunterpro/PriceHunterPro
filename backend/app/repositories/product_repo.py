@@ -22,9 +22,15 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
     patrón fila-por-fila, que sobre una BD remota (Supabase) hacía miles de
     round-trips y tardaba horas. Devuelve (saved, errors, seen_ids)."""
     # 1) Precargar en memoria (2 queries en vez de 2 por producto)
-    sku_to_pid: dict[str, str] = dict(
-        session.execute(select(Product.sku_normalized, Product.id)).all()
-    )
+    existing_prod: dict[str, dict] = {
+        sku: {"id": pid, "name": name, "brand": brand, "category": category, "image_url": image_url}
+        for sku, pid, name, brand, category, image_url in session.execute(
+            select(
+                Product.sku_normalized, Product.id, Product.name,
+                Product.brand, Product.category, Product.image_url,
+            )
+        ).all()
+    }
     existing_sp: dict[str, dict] = {
         pid: {"id": spid, "price": price, "stock": stock}
         for pid, spid, price, stock in session.execute(
@@ -36,6 +42,7 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
     }
 
     new_products: list[dict] = []
+    product_updates: list[dict] = []
     new_sps: list[dict] = []
     sp_updates: list[dict] = []
     price_rows: list[dict] = []
@@ -46,15 +53,30 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
     for s in scraped:
         try:
             sku = _normalize_sku(s.name, s.brand)
-            pid = sku_to_pid.get(sku)
-            if pid is None:
+            prod = existing_prod.get(sku)
+            if prod is None:
                 pid = str(uuid.uuid4())
-                sku_to_pid[sku] = pid
+                existing_prod[sku] = {
+                    "id": pid, "name": s.name, "brand": s.brand,
+                    "category": s.category, "image_url": s.image_url or None,
+                }
                 new_products.append({
                     "id": pid, "name": s.name, "brand": s.brand,
                     "category": s.category, "sku_normalized": sku,
                     "image_url": s.image_url or None,
                 })
+            else:
+                pid = prod["id"]
+                # Refrescar campos del Product si cambiaron (la imagen solo si el
+                # scrape trae una). Igual que el upsert fila-por-fila original.
+                new_image = s.image_url or prod["image_url"]
+                if (prod["name"] != s.name or prod["brand"] != s.brand
+                        or prod["category"] != s.category or prod["image_url"] != new_image):
+                    product_updates.append({
+                        "id": pid, "name": s.name, "brand": s.brand,
+                        "category": s.category, "image_url": new_image,
+                    })
+                    prod.update(name=s.name, brand=s.brand, category=s.category, image_url=new_image)
 
             row = existing_sp.get(pid)
             if row is None:
@@ -96,6 +118,8 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
     #    (flush para FK) -> updates -> price_history.
     if new_products:
         session.bulk_insert_mappings(Product, new_products)
+    if product_updates:
+        session.bulk_update_mappings(Product, product_updates)
     if new_sps:
         session.bulk_insert_mappings(StoreProduct, new_sps)
     session.flush()
