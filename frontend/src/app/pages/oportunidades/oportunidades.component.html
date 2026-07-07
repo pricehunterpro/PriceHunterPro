@@ -1,0 +1,164 @@
+<!-- Stats grid -->
+<section class="stats-grid">
+  <article class="stat-card accent">
+    <p class="stat-label">Oportunidades</p>
+    <h3>{{ s.stats?.total ?? 0 }}</h3>
+    <p class="stat-sub">en {{ (s.stats?.byStore | keyvalue)?.length ?? 0 }} tiendas</p>
+  </article>
+  <article class="stat-card red">
+    <p class="stat-label">Mejor descuento</p>
+    <h3>{{ s.stats?.bestDiscount ?? 0 }}%</h3>
+    <p class="stat-sub">en promociones activas</p>
+  </article>
+  <article class="stat-card accent">
+    <p class="stat-label">Mayor margen</p>
+    <h3>{{ s.stats?.bestMargin ?? 0 }}%</h3>
+    <p class="stat-sub">margen potencial estimado</p>
+  </article>
+  <article class="stat-card blue">
+    <p class="stat-label">Precio mínimo</p>
+    <h3>{{ s.formatCurrency(s.stats?.minPrice ?? 0) }}</h3>
+    <p class="stat-sub">promedio del portafolio</p>
+  </article>
+</section>
+
+<!-- Filters toolbar -->
+<section class="toolbar">
+  <label class="search-box">
+    <span class="icon">⌕</span>
+    <input [(ngModel)]="s.searchQuery" name="searchQuery"
+           placeholder="Buscar producto o marca..."
+           (keyup.enter)="s.submitFilters()" />
+  </label>
+  <label class="select-box">
+    <span>Tienda</span>
+    <select [ngModel]="s.selectedStore"
+            (ngModelChange)="s.selectedStore=$event; s.onStoreChange()">
+      <option value="">Todas</option>
+      <option *ngFor="let store of s.stores" [value]="store">{{ store }}</option>
+    </select>
+  </label>
+  <label class="select-box">
+    <span>Categoría</span>
+    <select [ngModel]="s.selectedCategory"
+            (ngModelChange)="s.selectedCategory=$event; s.onCategoryChange()">
+      <option value="">Todas</option>
+      <option *ngFor="let cat of s.categories" [value]="cat">{{ cat }}</option>
+    </select>
+  </label>
+  <label class="select-box">
+    <span>Marca</span>
+    <select [ngModel]="s.selectedBrand"
+            (ngModelChange)="s.selectedBrand=$event; s.submitFilters()">
+      <option value="">Todas</option>
+      <option *ngFor="let brand of s.brands" [value]="brand">{{ brand }}</option>
+    </select>
+  </label>
+  <label class="select-box">
+    <span>Ordenar</span>
+    <select [ngModel]="s.sortBy"
+            (ngModelChange)="s.sortBy=$event; s.submitFilters()">
+      <option value="discount">Mayor descuento</option>
+      <option value="margin">Mayor margen</option>
+      <option value="price_asc">Precio: menor a mayor</option>
+      <option value="price_desc">Precio: mayor a menor</option>
+    </select>
+  </label>
+  <button type="button" class="primary-btn" (click)="s.submitFilters()">Aplicar</button>
+</section>
+
+<div class="chips" *ngIf="s.activeFilters.length">
+  <span class="chip" *ngFor="let f of s.activeFilters">
+    {{ f }}
+    <button type="button" (click)="s.clearAllFilters()">×</button>
+  </span>
+</div>
+
+<!-- Deals table -->
+<section class="table-card">
+  <div class="section-header">
+    <div>
+      <h2>Oportunidades de reventa</h2>
+      <p>{{ s.deals.length }} resultados</p>
+      <p class="view-sync-date">Última actualización: {{ s.lastSyncFull }}</p>
+    </div>
+    <button type="button" class="ghost-btn" (click)="s.clearAllFilters()">Limpiar filtros</button>
+  </div>
+  <div *ngIf="s.loading" class="loading-row">Cargando...</div>
+  <div *ngIf="s.error" class="error-row">{{ s.error }}</div>
+  <div class="table-wrap" *ngIf="!s.loading && !s.error">
+    <div class="table-head">
+      <span>#</span><span>Producto</span><span>Tienda</span><span>Marca</span>
+      <span>Categoría</span><span class="right">P. orig.</span><span class="right">Precio</span>
+      <span class="center">Dscto.</span><span class="center">Margen</span><span>Comprar</span>
+    </div>
+    <div class="deal-row" *ngFor="let deal of s.deals; let i = index">
+      <span class="rank"
+            [ngClass]="i === 0 && s.currentPage === 1 ? 'gold' :
+                       i === 1 && s.currentPage === 1 ? 'silver' :
+                       i === 2 && s.currentPage === 1 ? 'bronze' : ''">
+        {{ (s.currentPage - 1) * s.pageSize + i + 1 }}
+      </span>
+      <div class="product-cell">
+        <strong>{{ deal.name }}</strong>
+        <span class="below-market-badge" *ngIf="deal.belowMarket">🔥 {{ deal.mktDiffPct }}% bajo mercado</span>
+        <span class="stock" *ngIf="!deal.inStock">Sin stock</span>
+      </div>
+      <span class="store-pill" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
+      <span class="muted">{{ deal.brand }}</span>
+      <span class="category-pill">{{ deal.category }}</span>
+      <span class="muted right">{{ s.formatCurrency(deal.originalPrice) }}</span>
+      <span class="price-value right">{{ s.formatCurrency(deal.currentPrice) }}</span>
+      <span class="discount-pill">-{{ deal.discountPct }}%</span>
+      <span class="margin-pill"
+            [ngClass]="deal.marginPct >= 60 ? 'good' : deal.marginPct >= 30 ? 'warn' : 'bad'">
+        +{{ deal.marginPct }}%
+      </span>
+      <a class="buy-btn" [href]="deal.url" target="_blank" rel="noreferrer">Comprar ↗</a>
+    </div>
+  </div>
+  <div class="pagination" *ngIf="s.totalPages > 1">
+    <button class="page-btn" (click)="s.goToPage(s.currentPage - 1)"
+            [disabled]="s.currentPage === 1">← Anterior</button>
+    <span class="page-info">Página {{ s.currentPage }} de {{ s.totalPages }}</span>
+    <button class="page-btn" (click)="s.goToPage(s.currentPage + 1)"
+            [disabled]="s.currentPage === s.totalPages">Siguiente →</button>
+  </div>
+</section>
+
+<!-- Calculadora de margen -->
+<section class="calc-card">
+  <div class="calc-header">
+    <div>
+      <h3>📊 Calculadora de margen</h3>
+      <p>Ingresa los datos para calcular si vale la pena.</p>
+    </div>
+  </div>
+  <div class="calc-grid">
+    <label><span>Precio de compra (S/)</span>
+      <input type="number" [(ngModel)]="buyPrice" name="buyPrice" /></label>
+    <label><span>Precio de venta objetivo (S/)</span>
+      <input type="number" [(ngModel)]="sellPrice" name="sellPrice" /></label>
+    <label><span>Costos adicionales (S/)</span>
+      <input type="number" [(ngModel)]="additionalCosts" name="additionalCosts" /></label>
+  </div>
+  <div class="calc-results">
+    <div class="result-card">
+      <p>Ganancia neta</p>
+      <strong [ngClass]="profit >= 0 ? 'good' : 'bad'">{{ s.formatCurrency(profit) }}</strong>
+    </div>
+    <div class="result-card">
+      <p>Margen %</p>
+      <strong [ngClass]="marginClass">{{ margin.toFixed(1) }}%</strong>
+    </div>
+    <div class="result-card">
+      <p>ROI</p>
+      <strong [ngClass]="roi >= 20 ? 'good' : roi >= 10 ? 'warn' : 'bad'">{{ roi.toFixed(1) }}%</strong>
+    </div>
+    <div class="result-card">
+      <p>Punto equilibrio</p>
+      <strong>{{ s.formatCurrency(breakEven) }}</strong>
+    </div>
+  </div>
+  <div class="status-banner" [ngClass]="marginClass">{{ marginStatus }}</div>
+</section>

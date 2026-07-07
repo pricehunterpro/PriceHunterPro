@@ -1,0 +1,191 @@
+<!-- ══════════════════════════════════════════════
+     KPIs
+══════════════════════════════════════════════ -->
+<section class="stats-grid mon-kpis">
+
+  <article class="stat-card mon-card-active">
+    <p class="stat-label">Scrapers Activos</p>
+    <h3>{{ summary.scrapersActivos }}</h3>
+    <p class="stat-sub">de 6 tiendas</p>
+  </article>
+
+  <article class="stat-card mon-card-error">
+    <p class="stat-label">Con Error</p>
+    <h3>{{ summary.scrapersConError }}</h3>
+    <p class="stat-sub">scrapers fallando</p>
+  </article>
+
+  <article class="stat-card mon-card-proc">
+    <p class="stat-label">Ejecutándose</p>
+    <h3 [class.pulse]="summary.procesosEjecutando > 0">{{ summary.procesosEjecutando }}</h3>
+    <p class="stat-sub">{{ summary.scrapingActivo ? '🟢 scrape en curso' : 'procesos activos' }}</p>
+  </article>
+
+  <article class="stat-card mon-card-sync">
+    <p class="stat-label">Última Sync</p>
+    <h3 class="mon-sync-val">{{ formatSync(summary.ultimaSincronizacion) }}</h3>
+    <p class="stat-sub">sincronización</p>
+  </article>
+
+  <article class="stat-card mon-card-prod">
+    <p class="stat-label">Productos Hoy</p>
+    <h3>{{ summary.productosHoy | number }}</h3>
+    <p class="stat-sub">últimas 24 horas</p>
+  </article>
+
+</section>
+
+<!-- ══════════════════════════════════════════════
+     ESTADO DE SCRAPERS
+══════════════════════════════════════════════ -->
+<section class="table-card mon-section">
+
+  <div class="section-header">
+    <div>
+      <h2>🕷️ Estado de Scrapers</h2>
+      <p>Monitoreo en tiempo real de cada tienda</p>
+    </div>
+    <button class="primary-btn" (click)="loadAll()">↻ Actualizar</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="mon-head mon-head-scrapers">
+      <span>Tienda</span>
+      <span class="center">Estado</span>
+      <span>Última Ejecución</span>
+      <span>Tiempo</span>
+      <span class="right">Productos</span>
+      <span class="right">En Stock</span>
+      <span class="right">Errores</span>
+      <span class="center">Acción</span>
+    </div>
+
+    <div class="mon-row mon-row-scrapers" *ngFor="let sc of scrapers">
+      <span class="mon-store">
+        <span class="store-pill" [ngClass]="'store-' + sc.id">{{ sc.store }}</span>
+      </span>
+      <span class="center">
+        <span class="mon-status-badge" [ngClass]="statusClass(sc.status)">
+          <span class="mon-dot"></span>{{ sc.status }}
+        </span>
+      </span>
+      <span class="muted">{{ sc.lastSync }}</span>
+      <span class="muted">{{ sc.duracion }}</span>
+      <span class="right">{{ sc.productos | number }}</span>
+      <span class="right">{{ sc.enStock | number }}</span>
+      <span class="right" [class.text-error]="sc.errores > 0">{{ sc.errores }}</span>
+      <span class="center">
+        <button class="mon-action-btn" (click)="runNow(sc.id)"
+                [disabled]="summary.scrapingActivo"
+                title="Ejecutar ahora">
+          ▶
+        </button>
+      </span>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════
+     COLA DE PROCESOS
+══════════════════════════════════════════════ -->
+<section class="table-card mon-section">
+
+  <div class="section-header">
+    <div>
+      <h2>⚙️ Cola de Procesos</h2>
+      <p>Historial de tareas Celery</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="mon-head mon-head-tasks">
+      <span>ID</span>
+      <span>Tipo</span>
+      <span class="center">Estado</span>
+      <span>Inicio</span>
+      <span>Duración</span>
+      <span>Resultado</span>
+      <span>Error</span>
+    </div>
+
+    <div class="mon-row mon-row-tasks" *ngFor="let t of tasks">
+      <span class="mon-task-id" [title]="t.fullId">{{ t.id }}</span>
+      <span class="muted task-tipo">{{ t.tipo }}</span>
+      <span class="center">
+        <span class="mon-status-badge" [ngClass]="statusClass(t.status)">
+          <span class="mon-dot"></span>{{ t.status }}
+        </span>
+      </span>
+      <span class="muted">{{ t.inicio }}</span>
+      <span class="muted">{{ t.duracion }}</span>
+      <span class="text-accent" *ngIf="t.resultado">{{ t.resultado }}</span>
+      <span class="muted" *ngIf="!t.resultado">—</span>
+      <span class="text-error" *ngIf="t.error" [title]="t.error">{{ t.error }}</span>
+      <span class="muted" *ngIf="!t.error">—</span>
+    </div>
+
+    <div class="alerts-empty" *ngIf="tasks.length === 0">
+      Sin procesos registrados aún.
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════
+     LOGS + SYNCS (2 columnas)
+══════════════════════════════════════════════ -->
+<div class="mon-bottom-grid">
+
+  <!-- Logs -->
+  <section class="table-card mon-section">
+    <div class="section-header">
+      <div>
+        <h2>📋 Logs del Sistema</h2>
+        <p>Últimos eventos registrados</p>
+      </div>
+    </div>
+
+    <div class="mon-log-list">
+      <div class="mon-log-row" *ngFor="let log of logs">
+        <span class="mon-sev-badge" [ngClass]="severityClass(log.severidad)">{{ log.severidad | uppercase }}</span>
+        <span class="mon-log-fecha">{{ log.fecha }}</span>
+        <span class="mon-log-mod">{{ log.modulo }}</span>
+        <span class="mon-log-msg">{{ log.mensaje }}</span>
+      </div>
+      <div class="alerts-empty" *ngIf="logs.length === 0">Sin logs recientes.</div>
+    </div>
+  </section>
+
+  <!-- Syncs -->
+  <section class="table-card mon-section">
+    <div class="section-header">
+      <div>
+        <h2>🔄 Sincronizaciones</h2>
+        <p>Próximas ejecuciones por tienda</p>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="mon-head mon-head-syncs">
+        <span>Tienda</span>
+        <span>Última Sync</span>
+        <span>Próxima</span>
+        <span>Frecuencia</span>
+        <span class="center">Estado</span>
+      </div>
+      <div class="mon-row mon-row-syncs" *ngFor="let sy of syncs">
+        <span class="store-pill" [ngClass]="'store-' + sy.store.toLowerCase()">{{ sy.store }}</span>
+        <span class="muted">{{ sy.ultimaSync }}</span>
+        <span class="text-accent">{{ sy.proximaSync }}</span>
+        <span class="muted">{{ sy.frecuencia }}</span>
+        <span class="center">
+          <span class="mon-status-badge" [ngClass]="statusClass(sy.status)">
+            <span class="mon-dot"></span>{{ sy.status }}
+          </span>
+        </span>
+      </div>
+    </div>
+  </section>
+
+</div>

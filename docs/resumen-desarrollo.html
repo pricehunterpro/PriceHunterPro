@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PriceHunter Pro — Resumen de Desarrollo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --primary:   #6366f1;
+      --primary-d: #4f46e5;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --yellow:    #fbbf24;
+      --orange:    #f97316;
+      --bg:        #0f0f14;
+      --card:      #1a1a24;
+      --border:    #2a2a38;
+      --text:      #e2e8f0;
+      --muted:     #94a3b8;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #1a1a24 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 64px 40px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,.18) 0%, transparent 70%);
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(99,102,241,.15);
+      border: 1px solid rgba(99,102,241,.4);
+      color: #a5b4fc;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 99px;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 52px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .hero .sub {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 620px;
+      margin: 0 auto 32px;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .meta-item {
+      text-align: center;
+    }
+    .meta-item .val {
+      display: block;
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--primary);
+    }
+    .meta-item .lbl {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 1080px; margin: 0 auto; padding: 48px 32px; }
+
+    section { margin-bottom: 56px; }
+    section h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 24px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    section h2 .ico { font-size: 20px; }
+
+    /* ── CARDS ── */
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 24px;
+    }
+    .card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .card p { font-size: 14px; color: #cbd5e1; }
+    .card .highlight {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    /* ── TECH STACK ── */
+    .stack-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 13px;
+      border-radius: 99px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid;
+    }
+    .tag-purple { background: rgba(99,102,241,.12); border-color: rgba(99,102,241,.4); color: #a5b4fc; }
+    .tag-green  { background: rgba(34,197,94,.1);   border-color: rgba(34,197,94,.3);  color: #4ade80; }
+    .tag-blue   { background: rgba(59,130,246,.1);  border-color: rgba(59,130,246,.3); color: #60a5fa; }
+    .tag-orange { background: rgba(249,115,22,.1);  border-color: rgba(249,115,22,.3); color: #fb923c; }
+    .tag-red    { background: rgba(239,68,68,.1);   border-color: rgba(239,68,68,.3);  color: #f87171; }
+    .tag-gray   { background: rgba(148,163,184,.1); border-color: rgba(148,163,184,.3);color: #94a3b8; }
+    .tag-yellow { background: rgba(251,191,36,.1);  border-color: rgba(251,191,36,.3); color: #fcd34d; }
+
+    /* ── ARCHITECTURE DIAGRAM ── */
+    .arch {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      overflow-x: auto;
+    }
+    .arch-diagram {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      align-items: center;
+      min-width: 560px;
+    }
+    .arch-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+    }
+    .arch-box {
+      border-radius: 10px;
+      padding: 10px 16px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid;
+      min-width: 110px;
+    }
+    .arch-arrow {
+      text-align: center;
+      color: var(--muted);
+      font-size: 20px;
+      margin: 4px 0;
+    }
+    .ab-nginx    { background: rgba(34,197,94,.1);  border-color:rgba(34,197,94,.4);  color:#4ade80; }
+    .ab-backend  { background: rgba(99,102,241,.1); border-color:rgba(99,102,241,.4); color:#a5b4fc; }
+    .ab-celery   { background: rgba(249,115,22,.1); border-color:rgba(249,115,22,.4); color:#fb923c; }
+    .ab-redis    { background: rgba(239,68,68,.1);  border-color:rgba(239,68,68,.4);  color:#f87171; }
+    .ab-pg       { background: rgba(59,130,246,.1); border-color:rgba(59,130,246,.4); color:#60a5fa; }
+    .ab-front    { background: rgba(251,191,36,.1); border-color:rgba(251,191,36,.4); color:#fcd34d; }
+    .ab-ext      { background: rgba(148,163,184,.1);border-color:rgba(148,163,184,.4);color:#94a3b8; }
+
+    /* ── FEATURE LIST ── */
+    .feature-list { display: flex; flex-direction: column; gap: 14px; }
+    .feature-item {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .feature-item .fi-icon {
+      font-size: 22px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .feature-item h4 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .feature-item p  { font-size: 13px; color: var(--muted); }
+    .status-done  { border-left: 3px solid var(--green); }
+    .status-build { border-left: 3px solid var(--yellow); }
+    .status-todo  { border-left: 3px solid var(--border); }
+
+    /* ── SCRAPERS TABLE ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    thead th {
+      text-align: left;
+      padding: 10px 14px;
+      background: rgba(99,102,241,.1);
+      color: #a5b4fc;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    thead th:first-child { border-radius: 8px 0 0 8px; }
+    thead th:last-child  { border-radius: 0 8px 8px 0; }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody td { padding: 11px 14px; color: #cbd5e1; }
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .pill-green  { background: rgba(34,197,94,.15); color: #4ade80; }
+    .pill-red    { background: rgba(239,68,68,.15); color: #f87171; }
+    .pill-yellow { background: rgba(251,191,36,.15);color: #fcd34d; }
+
+    /* ── TIMELINE ── */
+    .timeline { display: flex; flex-direction: column; gap: 0; }
+    .tl-item {
+      display: flex;
+      gap: 16px;
+      padding-bottom: 28px;
+      position: relative;
+    }
+    .tl-item::before {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 32px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .tl-item:last-child::before { display: none; }
+    .tl-dot {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      position: relative;
+      z-index: 1;
+    }
+    .tl-body h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .tl-body p  { font-size: 13px; color: var(--muted); }
+    .tl-date { font-size: 11px; color: var(--primary); font-weight: 700;
+                letter-spacing: .05em; text-transform: uppercase; margin-bottom: 2px; }
+
+    /* ── BACKLOG ── */
+    .backlog-list { display: flex; flex-direction: column; gap: 10px; }
+    .backlog-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 16px;
+      font-size: 14px;
+    }
+    .backlog-item .pri {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      flex-shrink: 0;
+    }
+    .pri-alta   { background: rgba(239,68,68,.15);  color:#f87171; }
+    .pri-media  { background: rgba(251,191,36,.15); color:#fcd34d; }
+    .pri-baja   { background: rgba(148,163,184,.15);color:#94a3b8; }
+
+    /* ── ENV TABLE ── */
+    .env-table { width: 100%; font-size: 13px; }
+    .env-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    .env-table td:first-child { color: #a5b4fc; font-weight: 600; font-family: monospace; }
+    .env-table td:last-child  { color: var(--muted); }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 32px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer strong { color: var(--primary); }
+
+    @media print {
+      body { background: #fff; color: #111; }
+      .card, .arch, .feature-item, .backlog-item { border-color: #ddd !important; background: #f8f9fa !important; }
+      .hero { background: #1e1b4b !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HERO ─────────────────────────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="hero-badge">Documento Técnico — Junio 2026</div>
+  <h1>PriceHunter Pro</h1>
+  <p class="sub">
+    Plataforma de scraping y alertas de precios para el mercado peruano.
+    Comparación en tiempo real de Falabella, Ripley, PlazaVea, Oechsle, Promart, Tottus e Hiraoka.
+  </p>
+  <div class="meta-row">
+    <div class="meta-item">
+      <span class="val">7</span>
+      <span class="lbl">Tiendas</span>
+    </div>
+    <div class="meta-item">
+      <span class="val">7</span>
+      <span class="lbl">Contenedores Docker</span>
+    </div>
+    <div class="meta-item">
+      <span class="val">3×</span>
+      <span class="lbl">Publicaciones Telegram/día</span>
+    </div>
+    <div class="meta-item">
+      <span class="val">1×</span>
+      <span class="lbl">Imagen TikTok/día</span>
+    </div>
+    <div class="meta-item">
+      <span class="val">6+</span>
+      <span class="lbl">Días en producción</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── STACK ─────────────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">⚙️</span> Stack Tecnológico</h2>
+    <div class="stack-list">
+      <span class="tag tag-purple">Python 3.11</span>
+      <span class="tag tag-purple">FastAPI 0.115</span>
+      <span class="tag tag-purple">SQLAlchemy 2.0 async</span>
+      <span class="tag tag-purple">Alembic</span>
+      <span class="tag tag-purple">Pydantic v2</span>
+      <span class="tag tag-orange">Celery 5.4</span>
+      <span class="tag tag-red">Redis 7</span>
+      <span class="tag tag-blue">PostgreSQL 15</span>
+      <span class="tag tag-blue">asyncpg</span>
+      <span class="tag tag-green">Angular 17</span>
+      <span class="tag tag-green">TypeScript</span>
+      <span class="tag tag-gray">Docker Compose</span>
+      <span class="tag tag-gray">Nginx</span>
+      <span class="tag tag-yellow">Playwright</span>
+      <span class="tag tag-yellow">httpx</span>
+      <span class="tag tag-yellow">Pillow 10+</span>
+      <span class="tag tag-gray">Telegram Bot API</span>
+      <span class="tag tag-gray">ngrok</span>
+    </div>
+  </section>
+
+  <!-- ── ARQUITECTURA ───────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">🏗️</span> Arquitectura del Sistema</h2>
+    <div class="arch">
+      <div class="arch-diagram">
+
+        <div class="arch-row">
+          <div class="arch-box ab-ext">Internet / ngrok<br><small>:80 → tunnel</small></div>
+          <div class="arch-box ab-ext">Telegram API<br><small>api.telegram.org</small></div>
+          <div class="arch-box ab-ext">Tiendas Web<br><small>Falabella, Ripley…</small></div>
+        </div>
+
+        <div class="arch-arrow">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↑ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</div>
+
+        <div class="arch-row">
+          <div class="arch-box ab-nginx">Nginx<br><small>Reverse Proxy :80</small></div>
+          <div style="width:120px"></div>
+          <div class="arch-box ab-celery">Celery Beat<br><small>Scheduler Cron</small></div>
+        </div>
+
+        <div class="arch-arrow">↓ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</div>
+
+        <div class="arch-row">
+          <div class="arch-box ab-front">Angular Frontend<br><small>:4200</small></div>
+          <div class="arch-box ab-backend">FastAPI Backend<br><small>:8000</small></div>
+          <div class="arch-box ab-celery">Celery Worker<br><small>concurrency=4</small></div>
+        </div>
+
+        <div class="arch-arrow">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓ ↕ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↕</div>
+
+        <div class="arch-row">
+          <div style="width:120px"></div>
+          <div class="arch-box ab-pg">PostgreSQL 15<br><small>:5432</small></div>
+          <div class="arch-box ab-redis">Redis 7<br><small>:6379 Broker+Cache</small></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SCRAPERS ───────────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">🕷️</span> Scrapers Activos</h2>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table>
+        <thead>
+          <tr>
+            <th>Tienda</th>
+            <th>Método</th>
+            <th>Categorías</th>
+            <th>Top Deals</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>🟢 Falabella</td>
+            <td>Playwright (headless)</td>
+            <td>Tecnología, Moda, Hogar</td>
+            <td>—</td>
+            <td><span class="pill pill-green">Activo</span></td>
+          </tr>
+          <tr>
+            <td>🟣 Ripley</td>
+            <td>Playwright (headless)</td>
+            <td>Tecnología, Moda, Hogar</td>
+            <td>—</td>
+            <td><span class="pill pill-green">Activo</span></td>
+          </tr>
+          <tr>
+            <td>🔴 PlazaVea</td>
+            <td>VTEX API (httpx)</td>
+            <td>16 categorías</td>
+            <td>300 productos</td>
+            <td><span class="pill pill-green">Activo</span></td>
+          </tr>
+          <tr>
+            <td>🟡 Oechsle</td>
+            <td>VTEX API (httpx)</td>
+            <td>12 categorías</td>
+            <td>300 productos</td>
+            <td><span class="pill pill-green">Activo</span></td>
+          </tr>
+          <tr>
+            <td>🟠 Promart</td>
+            <td>httpx + BeautifulSoup</td>
+            <td>Construcción, Hogar</td>
+            <td>—</td>
+            <td><span class="pill pill-yellow">Parcial</span></td>
+          </tr>
+          <tr>
+            <td>🔵 Tottus</td>
+            <td>httpx</td>
+            <td>—</td>
+            <td>—</td>
+            <td><span class="pill pill-red">Bloqueado WAF</span></td>
+          </tr>
+          <tr>
+            <td>🟩 Hiraoka</td>
+            <td>httpx + BeautifulSoup</td>
+            <td>Electrónica</td>
+            <td>—</td>
+            <td><span class="pill pill-yellow">Parcial</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px; color:var(--muted); margin-top:10px;">
+      Scraping automático: 00:30 · 01:30 · 03:00 · 06:00 · 12:00 · 20:00 (hora Lima)
+    </p>
+  </section>
+
+  <!-- ── FEATURES ───────────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">✅</span> Funcionalidades Implementadas</h2>
+    <div class="feature-list">
+
+      <div class="feature-item status-done">
+        <span class="fi-icon">🖥️</span>
+        <div>
+          <h4>Dashboard Web Angular 17</h4>
+          <p>Listado de ofertas con filtros por tienda, categoría, marca y descuento mínimo. Búsqueda por palabra clave con regex de límite de palabra (evita matches como "puma" en "espuma"). Ordenamiento por descuento, margen, precio y diferencia de mercado.</p>
+        </div>
+      </div>
+
+      <div class="feature-item status-done">
+        <span class="fi-icon">🔔</span>
+        <div>
+          <h4>Alertas de precio por debajo del mercado</h4>
+          <p>Detecta productos cuyo precio actual es al menos 15% menor a su promedio histórico propio (mínimo 2 registros con +12h de antigüedad). Envía alerta al canal Telegram automáticamente post-scraping con deduplicación Redis (TTL 24h).</p>
+        </div>
+      </div>
+
+      <div class="feature-item status-done">
+        <span class="fi-icon">📢</span>
+        <div>
+          <h4>Bot Telegram — Canal DEV y Canal PRD</h4>
+          <p>Publica simultáneamente en canal familiar (DEV) y canal público (PRD). Formato con foto del producto, precio original tachado, precio actual, % descuento y link. Publicación automática 3 veces al día: 8:00am · 12:05pm · 8:05pm.</p>
+        </div>
+      </div>
+
+      <div class="feature-item status-done">
+        <span class="fi-icon">🎬</span>
+        <div>
+          <h4>Generador de Imágenes TikTok (Pillow)</h4>
+          <p>Genera imágenes 1080×1920 (formato vertical TikTok) con: barra de tienda en color corporativo, foto del producto descargada del URL, badge de descuento en rojo, precio original tachado, precio actual en verde, ahorro en píldora verde, CTA y hashtags. Se envía al Telegram del admin a las 7:00am con caption listo para pegar en TikTok.</p>
+        </div>
+      </div>
+
+      <div class="feature-item status-done">
+        <span class="fi-icon">🗄️</span>
+        <div>
+          <h4>Base de datos con historial de precios</h4>
+          <p>Modelos: Product, StoreProduct, PriceHistory, ScrapingLog. Detección de "below market" con ventana temporal de 12h. Limpieza automática de historial mayor a 30 días. Deduplicación por store_sku.</p>
+        </div>
+      </div>
+
+      <div class="feature-item status-done">
+        <span class="fi-icon">🌐</span>
+        <div>
+          <h4>Acceso público vía ngrok</h4>
+          <p>Túnel ngrok activo en <code style="font-family:monospace; font-size:12px; color:#a5b4fc;">https://energetic-respect-sixth.ngrok-free.dev</code>. CORS configurado para permitir origen wildcard compatible con ngrok. nginx con Docker DNS resolver para evitar cache de IPs de contenedores.</p>
+        </div>
+      </div>
+
+      <div class="feature-item status-done">
+        <span class="fi-icon">⚡</span>
+        <div>
+          <h4>API REST FastAPI + Endpoints manuales</h4>
+          <p>
+            <code style="font-family:monospace; font-size:12px; color:#a5b4fc;">POST /api/v1/deals/scrape/trigger</code> — scraping manual<br>
+            <code style="font-family:monospace; font-size:12px; color:#a5b4fc;">POST /api/v1/deals/telegram/publish</code> — publicar deals en Telegram<br>
+            <code style="font-family:monospace; font-size:12px; color:#a5b4fc;">POST /api/v1/deals/tiktok/generate</code> — generar imagen TikTok<br>
+            <code style="font-family:monospace; font-size:12px; color:#a5b4fc;">GET  /api/v1/deals</code> — listar deals con filtros<br>
+            <code style="font-family:monospace; font-size:12px; color:#a5b4fc;">GET  /api/v1/deals/stats</code> — estadísticas globales
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── SCHEDULER ─────────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">🕐</span> Tareas Programadas (Hora Lima)</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Scraping</h3>
+        <p style="font-family:monospace; font-size:13px; line-height:2;">
+          00:30 · 01:30 · 03:00<br>
+          06:00 · 12:00 · 20:00
+        </p>
+      </div>
+      <div class="card">
+        <h3>Publicación Telegram (DEV + PRD)</h3>
+        <p style="font-family:monospace; font-size:13px; line-height:2;">
+          08:00 · 12:05 · 20:05
+        </p>
+      </div>
+      <div class="card">
+        <h3>Imagen TikTok → Admin</h3>
+        <p style="font-family:monospace; font-size:13px; line-height:2;">
+          07:00 (diario)
+        </p>
+      </div>
+      <div class="card">
+        <h3>Limpieza de historial</h3>
+        <p style="font-family:monospace; font-size:13px; line-height:2;">
+          Elimina registros > 30 días<br>
+          (tarea manual on-demand)
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DOCKER SERVICES ───────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">🐳</span> Servicios Docker</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <h3>postgres</h3>
+        <p class="highlight">15</p>
+        <p>PostgreSQL Alpine<br>Volumen persistente<br>Healthcheck pg_isready</p>
+      </div>
+      <div class="card">
+        <h3>redis</h3>
+        <p class="highlight">7</p>
+        <p>Redis Alpine<br>Broker Celery<br>Cache deduplicación</p>
+      </div>
+      <div class="card">
+        <h3>backend</h3>
+        <p class="highlight">8000</p>
+        <p>FastAPI + Uvicorn<br>Auto-migración Alembic<br>Hot-reload activo</p>
+      </div>
+      <div class="card">
+        <h3>celery-worker</h3>
+        <p class="highlight">×4</p>
+        <p>Workers concurrentes<br>Scraping + Telegram<br>Generación TikTok</p>
+      </div>
+      <div class="card">
+        <h3>celery-beat</h3>
+        <p class="highlight">Cron</p>
+        <p>Scheduler automático<br>Zona horaria Lima<br>9 tareas programadas</p>
+      </div>
+      <div class="card">
+        <h3>frontend</h3>
+        <p class="highlight">4200</p>
+        <p>Angular 17 CLI<br>Standalone components<br>Dev server con poll</p>
+      </div>
+      <div class="card">
+        <h3>nginx</h3>
+        <p class="highlight">:80</p>
+        <p>Reverse proxy<br>DNS resolver Docker<br>WebSocket support</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TELEGRAM FORMAT ───────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">📱</span> Formatos de Publicación</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Canal Telegram (DEV + PRD)</h3>
+        <pre style="font-size:13px; color:#a5b4fc; line-height:1.8; white-space:pre-wrap;">🔥 OFERTÓN PRICEHUNTER PRO
+
+📦 Nombre del producto
+
+💰 Antes: ~~S/ 299.90~~
+✅ Ahora: S/ 179.90
+📉 Descuento: 40%
+🟢 Tienda: Falabella
+
+🔗 Ver oferta
+
+⏳ Precio sujeto a stock o cambios.
+
+#OfertasPeru #PriceHunterPro
+#DescuentosPeru #GangasPeru</pre>
+      </div>
+      <div class="card">
+        <h3>Caption TikTok (enviado al admin)</h3>
+        <pre style="font-size:13px; color:#fcd34d; line-height:1.8; white-space:pre-wrap;">Corre que se acaba! 40% de descuento
+en OECHSLE 🔥
+
+S/ 299.90 → S/ 179.90
+Ahorras S/ 120.00!
+
+Doble Rueda Abdominal Con Accesorio
+
+Siguenos para mas gangas todos
+los dias 👇
+
+#OfertasPeru #GangasPeru
+#Descuentos #OECHSLE
+#PriceHunterPro #Ahorra #Peru</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TIMELINE ───────────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">📅</span> Línea de Tiempo del Desarrollo</h2>
+    <div class="timeline">
+
+      <div class="tl-item">
+        <div class="tl-dot">1</div>
+        <div class="tl-body">
+          <div class="tl-date">Fase 1 — Infraestructura</div>
+          <h4>Docker Compose + Backend Dockerfile</h4>
+          <p>Creación del Dockerfile faltante (Python 3.11-slim + Playwright). Configuración de 7 servicios en docker-compose.yml. Variables de entorno en .env. Alembic para migraciones automáticas al iniciar.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot">2</div>
+        <div class="tl-body">
+          <div class="tl-date">Fase 2 — Scrapers y Base de Datos</div>
+          <h4>4 scrapers funcionales + historial de precios</h4>
+          <p>Falabella y Ripley con Playwright headless. PlazaVea y Oechsle con VTEX API. Top 300 deals sin filtro de categoría para capturar ofertas especiales. Deduplicación por store_sku.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot">3</div>
+        <div class="tl-body">
+          <div class="tl-date">Fase 3 — Frontend + nginx</div>
+          <h4>Dashboard Angular 17 + acceso público ngrok</h4>
+          <p>Dashboard con filtros, búsqueda y estadísticas. nginx con Docker DNS resolver para resolver IPs dinámicas. CORS wildcard para compatibilidad ngrok. Fix bug búsqueda regex word-boundary.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot">4</div>
+        <div class="tl-body">
+          <div class="tl-date">Fase 4 — Telegram Bot</div>
+          <h4>Canal DEV (familia) + Canal PRD (público)</h4>
+          <p>Bot configurado en BotFather. Descubrimiento de Channel ID vía getUpdates. Publicación simultánea en 2 canales. 3 publicaciones diarias automáticas. Alertas de precio por debajo del mercado con deduplicación Redis.</p>
+        </div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-dot" style="background:var(--green);">5</div>
+        <div class="tl-body">
+          <div class="tl-date">Fase 5 — Contenido TikTok</div>
+          <h4>Generador de imágenes 1080×1920 con Pillow</h4>
+          <p>Diseño visual dark mode con colores corporativos por tienda. Descarga foto del producto, badge de descuento, precios comparativos. Caption optimizado con hashtags. Envío automático al admin cada mañana a las 7am.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── CONFIGURACIÓN ─────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">🔧</span> Variables de Entorno (.env)</h2>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table class="env-table">
+        <tr><td>DATABASE_URL</td><td>postgresql+asyncpg://user:pass@postgres:5432/pricehunter</td></tr>
+        <tr><td>REDIS_URL</td><td>redis://redis:6379/0</td></tr>
+        <tr><td>ENVIRONMENT</td><td>production</td></tr>
+        <tr><td>TELEGRAM_BOT_TOKEN</td><td>Token del bot creado en BotFather</td></tr>
+        <tr><td>TELEGRAM_ADMIN_ID</td><td>ID personal del administrador (7826895297)</td></tr>
+        <tr><td>TELEGRAM_CHANNEL_DEV</td><td>ID canal familiar DEV (-100xxxxxxxxx)</td></tr>
+        <tr><td>TELEGRAM_CHANNEL_PRD</td><td>ID canal público PRD (-100xxxxxxxxx)</td></tr>
+        <tr><td>JWT_SECRET_KEY</td><td>Clave para tokens de autenticación</td></tr>
+        <tr><td>SCRAPE_INTERVAL_HOURS</td><td>1</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── BUGS RESUELTOS ─────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">🐛</span> Problemas Resueltos</h2>
+    <div class="grid grid-2">
+
+      <div class="card">
+        <h3>Dockerfile faltante</h3>
+        <p>El backend no tenía Dockerfile. Creado con Python 3.11-slim, dependencias de sistema para Playwright, instalación de Chromium headless.</p>
+      </div>
+
+      <div class="card">
+        <h3>nginx "Connection refused" post-restart</h3>
+        <p>nginx cacheaba la IP del contenedor backend. Solución: <code style="font-family:monospace; color:#a5b4fc;">resolver 127.0.0.11</code> + variable <code style="font-family:monospace; color:#a5b4fc;">set $backend</code> para forzar re-resolución DNS.</p>
+      </div>
+
+      <div class="card">
+        <h3>Telegram "token o canal vacío"</h3>
+        <p>El contenedor tenía nombres de variables obsoletos. Solución: <code style="font-family:monospace; color:#a5b4fc;">docker compose up --force-recreate</code> (no <code style="font-family:monospace; color:#a5b4fc;">restart</code>) para releer el .env.</p>
+      </div>
+
+      <div class="card">
+        <h3>Búsqueda "puma" devolvía "espuma"</h3>
+        <p>El match era substring. Solución: regex con word-boundary <code style="font-family:monospace; color:#a5b4fc;">r'\b' + re.escape(q)</code> para buscar solo palabras completas.</p>
+      </div>
+
+      <div class="card">
+        <h3>Canal PRD no publicaba</h3>
+        <p>El bot no era admin del canal. Pasos: añadir bot como admin en Telegram → obtener Channel ID con getUpdates → actualizar .env y recrear contenedores.</p>
+      </div>
+
+      <div class="card">
+        <h3>Ofertas especiales no aparecían</h3>
+        <p>Los scrapers solo buscaban por categoría. Añadida función <code style="font-family:monospace; color:#a5b4fc;">_scrape_top_deals()</code> que obtiene los 300 mejores descuentos sin filtro de categoría.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── BACKLOG ─────────────────────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">📋</span> Backlog — Próximas Mejoras</h2>
+    <div class="backlog-list">
+
+      <div class="backlog-item">
+        <span class="pri pri-alta">ALTA</span>
+        <span>Deduplicación Redis para Telegram: evitar publicar el mismo deal 3 veces al día</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-alta">ALTA</span>
+        <span>Scrapers Falabella y Ripley: añadir modo "top deals" sin filtro de categoría (igual que PlazaVea/Oechsle)</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-alta">ALTA</span>
+        <span>Desbloquear Tottus: rotar User-Agent con Playwright stealth o usar API interna</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-media">MEDIA</span>
+        <span>Filtrar Telegram por categorías relevantes: electrónica, calzado, ropa, electrodomésticos + ahorro mínimo en S/</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-media">MEDIA</span>
+        <span>Precio promedio de mercado: comparar precio actual vs precio histórico de todas las tiendas</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-media">MEDIA</span>
+        <span>Mejorar imágenes TikTok: seleccionar automáticamente el deal más "visual" (foto limpia, descuento alto)</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-baja">BAJA</span>
+        <span>Videos TikTok: generar slideshow de 5 deals con librería MoviePy (equivalente a lo que hace SuperCupón con 97K seguidores)</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-baja">BAJA</span>
+        <span>Panel de administración: disparar scraping, ver logs de Celery y métricas de Telegram desde el dashboard</span>
+      </div>
+
+      <div class="backlog-item">
+        <span class="pri pri-baja">BAJA</span>
+        <span>Sistema de alertas por usuario: que los seguidores puedan suscribirse a categorías específicas</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── ESTRUCTURA DE CARPETAS ─────────────────────────────────────────────── -->
+  <section>
+    <h2><span class="ico">📁</span> Estructura del Proyecto</h2>
+    <div class="card">
+      <pre style="font-size:13px; color:#a5b4fc; line-height:1.9;">SC_DealsStore/
+├── .env                          # Variables de entorno (secretos)
+├── docker-compose.yml            # 7 servicios Docker
+├── nginx.conf                    # Reverse proxy con DNS resolver
+├── assets/
+│   └── logos/                    # logo-completo.png, logo-blanco.png…
+├── backend/
+│   ├── Dockerfile                # Python 3.11 + Playwright + Pillow + fonts
+│   ├── requirements.txt
+│   ├── alembic/                  # Migraciones de base de datos
+│   └── app/
+│       ├── main.py               # FastAPI app + CORS
+│       ├── core/config.py        # Settings desde .env
+│       ├── api/v1/deals.py       # Endpoints REST
+│       ├── models/               # SQLAlchemy ORM
+│       ├── repositories/         # product_repo (upsert)
+│       ├── scrapers/
+│       │   ├── falabella_scraper.py   # Playwright
+│       │   ├── ripley_scraper.py      # Playwright
+│       │   ├── plazavea_scraper.py    # VTEX API + top deals
+│       │   └── oechsle_scraper.py     # VTEX API + top deals
+│       ├── services/
+│       │   ├── deal_service.py        # Filtros, búsqueda, stats
+│       │   └── telegram_notifier.py   # Alertas below-market
+│       ├── notifications/
+│       │   ├── telegram.py            # send_deal, send_batch, notify_admin
+│       │   └── tiktok_image.py        # Generador Pillow 1080×1920
+│       └── tasks/
+│           └── celery_app.py          # Tareas: scrape, telegram, tiktok
+└── frontend/
+    └── src/app/                  # Angular 17 standalone components</pre>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <p>
+    <strong>PriceHunter Pro</strong> — Documento generado el 20 de junio de 2026<br>
+    Desarrollado con Claude Code (Anthropic) &nbsp;·&nbsp; jmarquinat@gmail.com
+  </p>
+</footer>
+
+</body>
+</html>

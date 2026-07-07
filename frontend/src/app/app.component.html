@@ -1,0 +1,548 @@
+<div class="app-shell">
+
+  <!-- ══════════════════════════════════════════════════════
+       SIDEBAR
+  ══════════════════════════════════════════════════════ -->
+  <aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sidebar-logo">
+      <img src="assets/logos/logo_web_portal2.png" alt="PriceHunter Pro" class="sb-logo-img" />
+    </div>
+
+    <!-- Sync status -->
+    <div class="sb-sync">
+      <span class="sb-sync-dot"></span>
+      <span class="sb-sync-label">{{ lastSyncLabel }}</span>
+    </div>
+
+    <!-- ── Navigation ── -->
+    <nav class="sb-nav">
+
+      <!-- Dashboard -->
+      <button class="sb-item" [class.active]="currentView === 'deals'" (click)="switchView('deals')">
+        <span class="sb-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+          </svg>
+        </span>
+        <span class="sb-label">Dashboard</span>
+      </button>
+
+      <!-- ── Oportunidades ─────────────────────────── -->
+      <div class="sb-group">
+        <button class="sb-group-header" (click)="toggleGroup('oportunidades')" [class.open]="openGroups.has('oportunidades')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </span>
+          <span class="sb-label">Oportunidades</span>
+          <span class="sb-arrow" [class.rotated]="openGroups.has('oportunidades')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        <div class="sb-sub" [class.open]="openGroups.has('oportunidades')">
+          <button class="sb-sub-item" [class.active]="currentView === 'deals'" (click)="switchView('deals')">
+            <span class="sb-sub-dot"></span>Radar General
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'gangas'" (click)="switchView('gangas')">
+            <span class="sb-sub-dot"></span>Gangas
+            <span class="sb-badge fire" *ngIf="gangasTotal > 0">{{ gangasTotal }}</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'alerts'" (click)="switchView('alerts')">
+            <span class="sb-sub-dot"></span>Alertas
+            <span class="sb-badge alert" *ngIf="alertsTotal > 0">{{ alertsTotal }}</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'historial'" (click)="switchView('historial')">
+            <span class="sb-sub-dot"></span>Historial de Precios
+            <span class="sb-coming">Soon</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Inteligencia IA ───────────────────────── -->
+      <div class="sb-group">
+        <button class="sb-group-header" (click)="toggleGroup('ia')" [class.open]="openGroups.has('ia')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+            </svg>
+          </span>
+          <span class="sb-label">Inteligencia IA</span>
+          <span class="sb-arrow" [class.rotated]="openGroups.has('ia')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        <div class="sb-sub" [class.open]="openGroups.has('ia')">
+          <button class="sb-sub-item" [class.active]="currentView === 'motor-ia'" (click)="switchView('motor-ia')">
+            <span class="sb-sub-dot"></span>Motor IA<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'recomendaciones'" (click)="switchView('recomendaciones')">
+            <span class="sb-sub-dot"></span>Recomendaciones IA<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'tendencias'" (click)="switchView('tendencias')">
+            <span class="sb-sub-dot"></span>Tendencias<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'ranking-ia'" (click)="switchView('ranking-ia')">
+            <span class="sb-sub-dot"></span>Ranking IA<span class="sb-coming">Soon</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Marketing ─────────────────────────────── -->
+      <div class="sb-group">
+        <button class="sb-group-header" (click)="toggleGroup('marketing')" [class.open]="openGroups.has('marketing')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </span>
+          <span class="sb-label">Marketing</span>
+          <span class="sb-arrow" [class.rotated]="openGroups.has('marketing')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        <div class="sb-sub" [class.open]="openGroups.has('marketing')">
+          <button class="sb-sub-item" [class.active]="currentView === 'publicador-ia'" (click)="switchView('publicador-ia')">
+            <span class="sb-sub-dot"></span>Publicador IA<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'tiktok-factory'" (click)="switchView('tiktok-factory')">
+            <span class="sb-sub-dot"></span>TikTok Factory<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'calendario'" (click)="switchView('calendario')">
+            <span class="sb-sub-dot"></span>Calendario Editorial<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'plantillas'" (click)="switchView('plantillas')">
+            <span class="sb-sub-dot"></span>Plantillas<span class="sb-coming">Soon</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Business Intelligence ─────────────────── -->
+      <div class="sb-group">
+        <button class="sb-group-header" (click)="toggleGroup('bi')" [class.open]="openGroups.has('bi')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+              <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+          </span>
+          <span class="sb-label">Business Intelligence</span>
+          <span class="sb-arrow" [class.rotated]="openGroups.has('bi')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        <div class="sb-sub" [class.open]="openGroups.has('bi')">
+          <button class="sb-sub-item" [class.active]="currentView === 'analytics'" (click)="switchView('analytics')">
+            <span class="sb-sub-dot"></span>Analytics<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'rentabilidad'" (click)="switchView('rentabilidad')">
+            <span class="sb-sub-dot"></span>Rentabilidad<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'portafolio'" (click)="switchView('portafolio')">
+            <span class="sb-sub-dot"></span>Portafolio<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'top-productos'" (click)="switchView('top-productos')">
+            <span class="sb-sub-dot"></span>Top Productos<span class="sb-coming">Soon</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Automatización ─────────────────────────── -->
+      <div class="sb-group">
+        <button class="sb-group-header" (click)="toggleGroup('auto')" [class.open]="openGroups.has('auto')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M12 2v2M12 20v2"/>
+            </svg>
+          </span>
+          <span class="sb-label">Automatización</span>
+          <span class="sb-arrow" [class.rotated]="openGroups.has('auto')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        <div class="sb-sub" [class.open]="openGroups.has('auto')">
+          <button class="sb-sub-item" [class.active]="currentView === 'scrapers'" (click)="switchView('scrapers')">
+            <span class="sb-sub-dot"></span>Scrapers<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'procesos'" (click)="switchView('procesos')">
+            <span class="sb-sub-dot"></span>Procesos<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'logs'" (click)="switchView('logs')">
+            <span class="sb-sub-dot"></span>Logs<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'monitoreo'" (click)="switchView('monitoreo')">
+            <span class="sb-sub-dot"></span>Monitoreo<span class="sb-coming">Soon</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Administración ─────────────────────────── -->
+      <div class="sb-group sb-group-last">
+        <button class="sb-group-header" (click)="toggleGroup('admin-grp')" [class.open]="openGroups.has('admin-grp')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/>
+            </svg>
+          </span>
+          <span class="sb-label">Administración</span>
+          <span class="sb-arrow" [class.rotated]="openGroups.has('admin-grp')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        <div class="sb-sub" [class.open]="openGroups.has('admin-grp')">
+          <button class="sb-sub-item" [class.active]="currentView === 'usuarios'" (click)="switchView('usuarios')">
+            <span class="sb-sub-dot"></span>Usuarios<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'tiendas'" (click)="switchView('tiendas')">
+            <span class="sb-sub-dot"></span>Tiendas<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'canales'" (click)="switchView('canales')">
+            <span class="sb-sub-dot"></span>Canales<span class="sb-coming">Soon</span>
+          </button>
+          <button class="sb-sub-item" [class.active]="currentView === 'configuracion'" (click)="switchView('configuracion')">
+            <span class="sb-sub-dot"></span>Configuración<span class="sb-coming">Soon</span>
+          </button>
+        </div>
+      </div>
+
+    </nav>
+
+    <!-- Footer -->
+    <div class="sb-footer">
+      <div class="sb-footer-user">
+        <div class="sb-avatar">PH</div>
+        <div class="sb-footer-meta">
+          <span class="sb-footer-name">Admin</span>
+          <span class="sb-footer-role">{{ isAdmin ? 'Super Admin' : 'Viewer' }}</span>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══════════════════════════════════════════════════════
+       MAIN AREA
+  ══════════════════════════════════════════════════════ -->
+  <div class="main-wrapper">
+
+    <!-- Top bar strip -->
+    <div class="topbar-strip">
+      <div class="ts-left">
+        <span class="ts-breadcrumb">
+          <span class="ts-bc-root">PriceHunter Pro</span>
+          <span class="ts-bc-sep">/</span>
+          <span class="ts-bc-current">
+            {{ currentView === 'deals' ? 'Radar General' :
+               currentView === 'gangas' ? 'Gangas' :
+               currentView === 'alerts' ? 'Alertas' :
+               comingSoonLabel }}
+          </span>
+        </span>
+      </div>
+      <div class="ts-right">
+        <div class="ts-sync">
+          <span class="ts-sync-dot"></span>
+          <span class="ts-sync-txt">{{ lastSyncFull }}</span>
+        </div>
+        <div class="ts-admin" *ngIf="isAdmin">
+          <button class="scrape-btn" (click)="triggerScrape()" [disabled]="scraping">
+            {{ scraping ? '⏳ Raspando...' : '🔄 Raspar' }}
+          </button>
+          <span class="scrape-msg" *ngIf="scrapeMsg">{{ scrapeMsg }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Page Content ── -->
+    <main class="page">
+
+      <!-- Stats grid — siempre visible en vistas activas -->
+      <section class="stats-grid" *ngIf="!isComingSoon">
+        <article class="stat-card accent">
+          <p class="stat-label">Oportunidades</p>
+          <h3>{{ stats?.total ?? 0 }}</h3>
+          <p class="stat-sub">en {{ (stats?.byStore | keyvalue)?.length ?? 0 }} tiendas</p>
+        </article>
+        <article class="stat-card red">
+          <p class="stat-label">Mejor descuento</p>
+          <h3>{{ stats?.bestDiscount ?? 0 }}%</h3>
+          <p class="stat-sub">en promociones activas</p>
+        </article>
+        <article class="stat-card accent">
+          <p class="stat-label">Mayor margen</p>
+          <h3>{{ stats?.bestMargin ?? 0 }}%</h3>
+          <p class="stat-sub">margen potencial estimado</p>
+        </article>
+        <article class="stat-card blue">
+          <p class="stat-label">Precio mínimo</p>
+          <h3>{{ formatCurrency(stats?.minPrice ?? 0) }}</h3>
+          <p class="stat-sub">promedio del portafolio</p>
+        </article>
+      </section>
+
+      <!-- Filters toolbar — solo en vista deals -->
+      <section class="toolbar" [style.display]="currentView !== 'deals' ? 'none' : null">
+        <label class="search-box">
+          <span class="icon">⌕</span>
+          <input [(ngModel)]="searchQuery" name="searchQuery" placeholder="Buscar producto o marca..."
+                 (keyup.enter)="submitFilters()" />
+        </label>
+        <label class="select-box">
+          <span>Categoría</span>
+          <select [ngModel]="selectedCategory" (ngModelChange)="selectedCategory=$event; submitFilters()">
+            <option value="">Todas</option>
+            <option *ngFor="let category of categories" [value]="category">{{ category }}</option>
+          </select>
+        </label>
+        <label class="select-box">
+          <span>Marca</span>
+          <select [ngModel]="selectedBrand" (ngModelChange)="selectedBrand=$event; submitFilters()">
+            <option value="">Todas</option>
+            <option *ngFor="let brand of brands" [value]="brand">{{ brand }}</option>
+          </select>
+        </label>
+        <label class="select-box">
+          <span>Tienda</span>
+          <select [ngModel]="selectedStore" (ngModelChange)="selectedStore=$event; submitFilters()">
+            <option value="">Todas</option>
+            <option *ngFor="let store of stores" [value]="store">{{ store }}</option>
+          </select>
+        </label>
+        <label class="select-box">
+          <span>Ordenar</span>
+          <select [ngModel]="sortBy" (ngModelChange)="sortBy=$event; submitFilters()">
+            <option value="discount">Mayor descuento</option>
+            <option value="margin">Mayor margen</option>
+            <option value="price_asc">Precio: menor a mayor</option>
+            <option value="price_desc">Precio: mayor a menor</option>
+          </select>
+        </label>
+        <button type="button" class="primary-btn" (click)="submitFilters()">Aplicar</button>
+      </section>
+
+      <div class="chips" *ngIf="activeFilters.length && currentView === 'deals'">
+        <span class="chip" *ngFor="let filter of activeFilters">
+          {{ filter }}
+          <button type="button" (click)="clearAllFilters()">×</button>
+        </span>
+      </div>
+
+      <!-- ══════════════════════ VISTA GANGAS ══════════════════════ -->
+      <ng-container *ngIf="currentView === 'gangas'">
+        <div class="gangas-header">
+          <div class="gangas-title-block">
+            <h2 class="gangas-title">🔥 Gangas del momento</h2>
+            <p class="gangas-sub">{{ gangasTotal }} productos con 40 % de descuento o más</p>
+            <p class="view-sync-date">Última actualización: {{ lastSyncFull }}</p>
+          </div>
+          <button class="ghost-btn" (click)="loadGangas()">Actualizar</button>
+        </div>
+        <div class="gangas-toolbar">
+          <label class="select-box">
+            <span>Tienda</span>
+            <select [ngModel]="gangaStore" (ngModelChange)="gangaStore=$event; loadGangas()">
+              <option value="">Todas</option>
+              <option *ngFor="let s of stores" [value]="s">{{ s }}</option>
+            </select>
+          </label>
+          <label class="select-box">
+            <span>Ordenar</span>
+            <select [ngModel]="gangaSort" (ngModelChange)="gangaSort=$event; loadGangas()">
+              <option value="discount">Mayor descuento</option>
+              <option value="margin">Mayor margen</option>
+              <option value="price_asc">Precio: menor a mayor</option>
+              <option value="price_desc">Precio: mayor a menor</option>
+            </select>
+          </label>
+        </div>
+        <div *ngIf="loadingGangas" class="alerts-loading">Cargando gangas...</div>
+        <div class="gangas-grid" *ngIf="!loadingGangas">
+          <article class="ganga-card" *ngFor="let deal of gangaDeals">
+            <div class="ganga-img-wrap">
+              <img *ngIf="deal.imageUrl" [src]="deal.imageUrl" [alt]="deal.name" class="ganga-img" loading="lazy" />
+              <div *ngIf="!deal.imageUrl" class="ganga-img-placeholder">📦</div>
+              <span class="ganga-discount-badge">-{{ deal.discountPct.toFixed(0) }}%</span>
+              <span class="ganga-store-badge" [ngClass]="getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
+              <span class="ganga-market-chip" *ngIf="deal.belowMarket">🔥 bajo mercado</span>
+            </div>
+            <div class="ganga-body">
+              <p class="ganga-name">{{ deal.name }}</p>
+              <p class="ganga-brand">{{ deal.brand }}</p>
+              <div class="ganga-price-row">
+                <span class="ganga-price-now">{{ formatCurrency(deal.currentPrice) }}</span>
+                <span class="ganga-price-was">{{ formatCurrency(deal.originalPrice) }}</span>
+              </div>
+              <a class="ganga-buy" [href]="deal.url" target="_blank" rel="noreferrer">Comprar ↗</a>
+            </div>
+          </article>
+        </div>
+      </ng-container>
+
+      <!-- ══════════════════════ VISTA ALERTAS ══════════════════════ -->
+      <ng-container *ngIf="currentView === 'alerts'">
+        <section class="alerts-header">
+          <div class="alerts-title">
+            <span class="alerts-icon">🔥</span>
+            <div>
+              <h2>Alertas de precio bajo mercado</h2>
+              <p>{{ alertsTotal }} producto{{ alertsTotal !== 1 ? 's' : '' }} por debajo del precio promedio</p>
+              <p class="view-sync-date">Última actualización: {{ lastSyncFull }}</p>
+            </div>
+          </div>
+          <button class="ghost-btn" (click)="loadAlerts()">Actualizar</button>
+        </section>
+        <div *ngIf="loadingAlerts" class="alerts-loading">Cargando alertas...</div>
+        <div class="alerts-grid" *ngIf="!loadingAlerts">
+          <article class="alert-card" *ngFor="let deal of alertDeals"
+                   [class.alert-card-stale]="productAge(deal.scrapedAt).level === 'stale'">
+            <div class="ganga-img-wrap">
+              <img *ngIf="deal.imageUrl" [src]="deal.imageUrl" [alt]="deal.name" class="ganga-img" loading="lazy" />
+              <div *ngIf="!deal.imageUrl" class="ganga-img-placeholder">📦</div>
+              <span class="ganga-store-badge" [ngClass]="getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
+              <span class="ganga-discount-badge">-{{ deal.discountPct.toFixed(0) }}%</span>
+              <span class="ganga-market-chip">🔥 {{ deal.mktDiffPct }}% bajo mercado</span>
+            </div>
+            <div class="ganga-body">
+              <p class="ganga-name">{{ deal.name }}</p>
+              <p class="ganga-brand">{{ deal.brand }}</p>
+              <div class="alert-prices">
+                <div class="alert-price-block">
+                  <span class="alert-price-label">Precio ahora</span>
+                  <span class="alert-price-current">{{ formatCurrency(deal.currentPrice) }}</span>
+                </div>
+                <div class="alert-arrow">vs</div>
+                <div class="alert-price-block">
+                  <span class="alert-price-label">Prom. histórico</span>
+                  <span class="alert-price-avg">{{ formatCurrency(deal.avgMarketPrice) }}</span>
+                </div>
+              </div>
+              <p class="alert-save-abs muted">Ahorras {{ formatCurrency(deal.avgMarketPrice - deal.currentPrice) }}</p>
+              <span class="alert-freshness"
+                    [class.fresh]="productAge(deal.scrapedAt).level === 'fresh'"
+                    [class.recent]="productAge(deal.scrapedAt).level === 'recent'"
+                    [class.stale]="productAge(deal.scrapedAt).level === 'stale'">
+                {{ productAge(deal.scrapedAt).label }}
+              </span>
+              <a class="ganga-buy alert-buy" [href]="deal.url" target="_blank" rel="noreferrer">Comprar ↗</a>
+            </div>
+          </article>
+          <div class="alerts-empty" *ngIf="alertDeals.length === 0">
+            No se encontraron productos por debajo del precio de mercado en este momento.
+          </div>
+        </div>
+      </ng-container>
+
+      <!-- ══════════════════════ VISTA OPORTUNIDADES ══════════════════════ -->
+      <section class="table-card" *ngIf="currentView === 'deals'">
+        <div class="section-header">
+          <div>
+            <h2>Oportunidades de reventa</h2>
+            <p>{{ deals.length }} resultados</p>
+            <p class="view-sync-date">Última actualización: {{ lastSyncFull }}</p>
+          </div>
+          <button type="button" class="ghost-btn" (click)="clearAllFilters()">Limpiar filtros</button>
+        </div>
+        <div class="table-wrap">
+          <div class="table-head">
+            <span>#</span><span>Producto</span><span>Tienda</span><span>Marca</span>
+            <span>Categoría</span><span class="right">P. orig.</span><span class="right">Precio</span>
+            <span class="center">Dscto.</span><span class="center">Margen</span><span>Comprar</span>
+          </div>
+          <div class="deal-row" *ngFor="let deal of deals; let i = index">
+            <span class="rank" [ngClass]="i === 0 && currentPage === 1 ? 'gold' : i === 1 && currentPage === 1 ? 'silver' : i === 2 && currentPage === 1 ? 'bronze' : ''">{{ (currentPage - 1) * pageSize + i + 1 }}</span>
+            <div class="product-cell">
+              <strong>{{ deal.name }}</strong>
+              <span class="below-market-badge" *ngIf="deal.belowMarket">🔥 {{ deal.mktDiffPct }}% bajo mercado</span>
+              <span class="stock" *ngIf="!deal.inStock">Sin stock</span>
+            </div>
+            <span class="store-pill" [ngClass]="getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
+            <span class="muted">{{ deal.brand }}</span>
+            <span class="category-pill">{{ deal.category }}</span>
+            <span class="muted right">{{ formatCurrency(deal.originalPrice) }}</span>
+            <span class="price-value right">{{ formatCurrency(deal.currentPrice) }}</span>
+            <span class="discount-pill">-{{ deal.discountPct }}%</span>
+            <span class="margin-pill" [ngClass]="deal.marginPct >= 60 ? 'good' : deal.marginPct >= 30 ? 'warn' : 'bad'">+{{ deal.marginPct }}%</span>
+            <a class="buy-btn" [href]="deal.url" target="_blank" rel="noreferrer">Comprar ↗</a>
+          </div>
+        </div>
+        <div class="pagination" *ngIf="totalPages > 1">
+          <button class="page-btn" (click)="goToPage(currentPage - 1)" [disabled]="currentPage === 1">← Anterior</button>
+          <span class="page-info">Página {{ currentPage }} de {{ totalPages }}</span>
+          <button class="page-btn" (click)="goToPage(currentPage + 1)" [disabled]="currentPage === totalPages">Siguiente →</button>
+        </div>
+      </section>
+
+      <section class="calc-card" *ngIf="currentView === 'deals'">
+        <div class="calc-header">
+          <div>
+            <h3>📊 Calculadora de margen</h3>
+            <p>Ingresa los datos para calcular si vale la pena.</p>
+          </div>
+        </div>
+        <div class="calc-grid">
+          <label><span>Precio de compra (S/)</span><input type="number" [(ngModel)]="buyPrice" name="buyPrice" /></label>
+          <label><span>Precio de venta objetivo (S/)</span><input type="number" [(ngModel)]="sellPrice" name="sellPrice" /></label>
+          <label><span>Costos adicionales (S/)</span><input type="number" [(ngModel)]="additionalCosts" name="additionalCosts" /></label>
+        </div>
+        <div class="calc-results">
+          <div class="result-card">
+            <p>Ganancia neta</p>
+            <strong [ngClass]="getProfit() >= 0 ? 'good' : 'bad'">{{ formatCurrency(getProfit()) }}</strong>
+          </div>
+          <div class="result-card">
+            <p>Margen %</p>
+            <strong [ngClass]="marginClass">{{ getMargin().toFixed(1) }}%</strong>
+          </div>
+          <div class="result-card">
+            <p>ROI</p>
+            <strong [ngClass]="getRoi() >= 20 ? 'good' : getRoi() >= 10 ? 'warn' : 'bad'">{{ getRoi().toFixed(1) }}%</strong>
+          </div>
+          <div class="result-card">
+            <p>Punto equilibrio</p>
+            <strong>{{ formatCurrency(getBreakEven()) }}</strong>
+          </div>
+        </div>
+        <div class="status-banner" [ngClass]="marginClass">{{ getMarginStatus() }}</div>
+      </section>
+
+      <!-- ══════════════════════ COMING SOON ══════════════════════ -->
+      <div class="coming-soon-wrap" *ngIf="isComingSoon">
+        <div class="cs-card">
+          <div class="cs-glow"></div>
+          <div class="cs-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#00E58F" stroke-width="1.4" stroke-linecap="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <h2 class="cs-title">{{ comingSoonLabel }}</h2>
+          <p class="cs-sub">Esta funcionalidad está en desarrollo y estará disponible próximamente.</p>
+          <div class="cs-tags">
+            <span class="cs-tag">En construcción</span>
+            <span class="cs-tag green">PriceHunter Pro</span>
+          </div>
+          <button class="cs-back" (click)="switchView('deals')">
+            ← Volver al Dashboard
+          </button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>

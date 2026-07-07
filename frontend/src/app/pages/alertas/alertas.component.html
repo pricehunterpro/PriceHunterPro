@@ -1,0 +1,80 @@
+<!-- Stats -->
+<section class="stats-grid">
+  <article class="stat-card accent">
+    <p class="stat-label">Alertas activas</p>
+    <h3>{{ s.alertsTotal }}</h3>
+    <p class="stat-sub">bajo precio de mercado</p>
+  </article>
+  <article class="stat-card red">
+    <p class="stat-label">Mejor descuento</p>
+    <h3>{{ s.stats?.bestDiscount ?? 0 }}%</h3>
+    <p class="stat-sub">en alertas activas</p>
+  </article>
+  <article class="stat-card blue">
+    <p class="stat-label">Oportunidades</p>
+    <h3>{{ s.stats?.total ?? 0 }}</h3>
+    <p class="stat-sub">total en radar</p>
+  </article>
+  <article class="stat-card accent">
+    <p class="stat-label">Última sincronización</p>
+    <h3 style="font-size:14px; line-height:1.4">{{ s.lastSyncLabel }}</h3>
+    <p class="stat-sub">{{ s.lastSyncFull }}</p>
+  </article>
+</section>
+
+<!-- Header -->
+<section class="alerts-header">
+  <div class="alerts-title">
+    <span class="alerts-icon">🔥</span>
+    <div>
+      <h2>Alertas de precio bajo mercado</h2>
+      <p>{{ s.alertsTotal }} producto{{ s.alertsTotal !== 1 ? 's' : '' }} por debajo del precio promedio</p>
+      <p class="view-sync-date">Última actualización: {{ s.lastSyncFull }}</p>
+    </div>
+  </div>
+  <button class="ghost-btn" (click)="s.loadAlerts()">Actualizar</button>
+</section>
+
+<div *ngIf="s.loadingAlerts" class="alerts-loading">Cargando alertas...</div>
+
+<div class="alerts-grid" *ngIf="!s.loadingAlerts">
+  <article class="alert-card" *ngFor="let deal of s.alertDeals"
+           [class.alert-card-stale]="s.productAge(deal.scrapedAt).level === 'stale'">
+    <div class="ganga-img-wrap">
+      <img *ngIf="deal.imageUrl" [src]="deal.imageUrl" [alt]="deal.name"
+           class="ganga-img" loading="lazy" />
+      <div *ngIf="!deal.imageUrl" class="ganga-img-placeholder">📦</div>
+      <span class="ganga-store-badge" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
+      <span class="ganga-discount-badge">-{{ deal.discountPct.toFixed(0) }}%</span>
+      <span class="ganga-market-chip">🔥 {{ deal.mktDiffPct }}% bajo mercado</span>
+    </div>
+    <div class="ganga-body">
+      <p class="ganga-name">{{ deal.name }}</p>
+      <p class="ganga-brand">{{ deal.brand }}</p>
+      <div class="alert-prices">
+        <div class="alert-price-block">
+          <span class="alert-price-label">Precio ahora</span>
+          <span class="alert-price-current">{{ s.formatCurrency(deal.currentPrice) }}</span>
+        </div>
+        <div class="alert-arrow">vs</div>
+        <div class="alert-price-block">
+          <span class="alert-price-label">Prom. histórico</span>
+          <span class="alert-price-avg">{{ s.formatCurrency(deal.avgMarketPrice) }}</span>
+        </div>
+      </div>
+      <p class="alert-save-abs muted">
+        Ahorras {{ s.formatCurrency(deal.avgMarketPrice - deal.currentPrice) }}
+      </p>
+      <span class="alert-freshness"
+            [class.fresh]="s.productAge(deal.scrapedAt).level === 'fresh'"
+            [class.recent]="s.productAge(deal.scrapedAt).level === 'recent'"
+            [class.stale]="s.productAge(deal.scrapedAt).level === 'stale'">
+        {{ s.productAge(deal.scrapedAt).label }}
+      </span>
+      <a class="ganga-buy alert-buy" [href]="deal.url" target="_blank" rel="noreferrer">Comprar ↗</a>
+    </div>
+  </article>
+  <div class="alerts-empty" *ngIf="s.alertDeals.length === 0">
+    No se encontraron productos por debajo del precio de mercado en este momento.
+  </div>
+</div>

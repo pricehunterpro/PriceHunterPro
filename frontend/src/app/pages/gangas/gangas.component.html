@@ -1,0 +1,81 @@
+<!-- Stats -->
+<section class="stats-grid">
+  <article class="stat-card red">
+    <p class="stat-label">Gangas activas</p>
+    <h3>{{ s.gangasTotal }}</h3>
+    <p class="stat-sub">con 40%+ de descuento</p>
+  </article>
+  <article class="stat-card accent">
+    <p class="stat-label">Mejor descuento</p>
+    <h3>{{ s.stats?.bestDiscount ?? 0 }}%</h3>
+    <p class="stat-sub">en gangas del momento</p>
+  </article>
+  <article class="stat-card blue">
+    <p class="stat-label">Precio mínimo</p>
+    <h3>{{ s.formatCurrency(s.stats?.minPrice ?? 0) }}</h3>
+    <p class="stat-sub">menor precio disponible</p>
+  </article>
+  <article class="stat-card accent">
+    <p class="stat-label">Total oportunidades</p>
+    <h3>{{ s.stats?.total ?? 0 }}</h3>
+    <p class="stat-sub">en todas las tiendas</p>
+  </article>
+</section>
+
+<!-- Header -->
+<div class="gangas-header">
+  <div class="gangas-title-block">
+    <h2 class="gangas-title">🔥 Gangas del momento</h2>
+    <p class="gangas-sub">{{ s.gangasTotal }} productos con 40 % de descuento o más</p>
+    <p class="view-sync-date">Última actualización: {{ s.lastSyncFull }}</p>
+  </div>
+  <button class="ghost-btn" (click)="s.loadGangas()">Actualizar</button>
+</div>
+
+<div class="gangas-toolbar">
+  <label class="select-box">
+    <span>Tienda</span>
+    <select [ngModel]="s.gangaStore"
+            (ngModelChange)="s.gangaStore=$event; s.loadGangas()">
+      <option value="">Todas</option>
+      <option *ngFor="let store of s.stores" [value]="store">{{ store }}</option>
+    </select>
+  </label>
+  <label class="select-box">
+    <span>Ordenar</span>
+    <select [ngModel]="s.gangaSort"
+            (ngModelChange)="s.gangaSort=$event; s.loadGangas()">
+      <option value="discount">Mayor descuento</option>
+      <option value="margin">Mayor margen</option>
+      <option value="price_asc">Precio: menor a mayor</option>
+      <option value="price_desc">Precio: mayor a menor</option>
+    </select>
+  </label>
+</div>
+
+<div *ngIf="s.loadingGangas" class="alerts-loading">Cargando gangas...</div>
+
+<div class="gangas-grid" *ngIf="!s.loadingGangas">
+  <article class="ganga-card" *ngFor="let deal of s.gangaDeals">
+    <div class="ganga-img-wrap">
+      <img *ngIf="deal.imageUrl" [src]="deal.imageUrl" [alt]="deal.name"
+           class="ganga-img" loading="lazy" />
+      <div *ngIf="!deal.imageUrl" class="ganga-img-placeholder">📦</div>
+      <span class="ganga-discount-badge">-{{ deal.discountPct.toFixed(0) }}%</span>
+      <span class="ganga-store-badge" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
+      <span class="ganga-market-chip" *ngIf="deal.belowMarket">🔥 bajo mercado</span>
+    </div>
+    <div class="ganga-body">
+      <p class="ganga-name">{{ deal.name }}</p>
+      <p class="ganga-brand">{{ deal.brand }}</p>
+      <div class="ganga-price-row">
+        <span class="ganga-price-now">{{ s.formatCurrency(deal.currentPrice) }}</span>
+        <span class="ganga-price-was">{{ s.formatCurrency(deal.originalPrice) }}</span>
+      </div>
+      <a class="ganga-buy" [href]="deal.url" target="_blank" rel="noreferrer">Comprar ↗</a>
+    </div>
+  </article>
+  <div class="alerts-empty" *ngIf="s.gangaDeals.length === 0">
+    No hay gangas disponibles en este momento.
+  </div>
+</div>

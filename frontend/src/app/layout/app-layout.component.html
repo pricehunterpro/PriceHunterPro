@@ -1,0 +1,309 @@
+<div class="layout" [class.sb-collapsed]="collapsed">
+
+  <!-- ══════════════ SIDEBAR ══════════════ -->
+  <aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="sb-logo">
+      <img src="assets/logos/isotipo.png" class="sb-isotipo" alt="PH" />
+      <div class="sb-wordmark">
+        <img src="assets/logos/logo_sidebar.png" alt="PriceHunter Pro" />
+      </div>
+      <button class="sb-toggle" (click)="collapsed = !collapsed" [title]="collapsed ? 'Expandir' : 'Colapsar'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Sync dot -->
+    <div class="sb-sync">
+      <span class="sb-sync-dot"></span>
+      <span class="sb-sync-label">{{ s.lastSyncLabel }}</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="sb-nav">
+
+      <!-- Dashboard -->
+      <a class="sb-item" routerLink="/oportunidades" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
+        <span class="sb-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+          </svg>
+        </span>
+        <span class="sb-label">Dashboard</span>
+      </a>
+
+      <!-- ── Oportunidades ── -->
+      <div class="sb-group">
+        <button class="sb-group-hdr" (click)="toggle('oportunidades')" [class.open]="isOpen('oportunidades')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </span>
+          <span class="sb-label">Oportunidades</span>
+          <svg class="sb-arrow" [class.rotated]="isOpen('oportunidades')" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sb-sub" [class.open]="isOpen('oportunidades')">
+          <a class="sb-sub-item" routerLink="/oportunidades" routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">
+            <span class="sb-sub-dot"></span><span>Radar General</span>
+          </a>
+          <a class="sb-sub-item" routerLink="/gangas" routerLinkActive="active">
+            <span class="sb-sub-dot"></span><span>Gangas</span>
+            <span class="sb-badge fire" *ngIf="s.gangasTotal > 0">{{ s.gangasTotal }}</span>
+          </a>
+          <a class="sb-sub-item" routerLink="/alertas" routerLinkActive="active">
+            <span class="sb-sub-dot"></span><span>Alertas</span>
+            <span class="sb-badge alert-b" *ngIf="s.alertsTotal > 0">{{ s.alertsTotal }}</span>
+          </a>
+          <a class="sb-sub-item" routerLink="/historial" routerLinkActive="active">
+            <span class="sb-sub-dot"></span><span>Historial</span>
+            <span class="sb-soon">Soon</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- ── Inteligencia IA ── -->
+      <div class="sb-group">
+        <button class="sb-group-hdr" (click)="toggle('ia')" [class.open]="isOpen('ia')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+            </svg>
+          </span>
+          <span class="sb-label">Inteligencia IA</span>
+          <svg class="sb-arrow" [class.rotated]="isOpen('ia')" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sb-sub" [class.open]="isOpen('ia')">
+          <a class="sb-sub-item" routerLink="/motor-ia" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Motor IA</span></a>
+          <a class="sb-sub-item" routerLink="/recomendaciones" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Recomendaciones</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/tendencias" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Tendencias</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/ranking-ia" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Ranking IA</span><span class="sb-soon">Soon</span></a>
+        </div>
+      </div>
+
+      <!-- ── Marketing ── -->
+      <div class="sb-group">
+        <button class="sb-group-hdr" (click)="toggle('mkt')" [class.open]="isOpen('mkt')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </span>
+          <span class="sb-label">Marketing</span>
+          <svg class="sb-arrow" [class.rotated]="isOpen('mkt')" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sb-sub" [class.open]="isOpen('mkt')">
+          <a class="sb-sub-item" routerLink="/publicador-ia"  routerLinkActive="active"><span class="sb-sub-dot"></span><span>Publicador IA</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/marketing/tiktok-factory" routerLinkActive="active"><span class="sb-sub-dot"></span><span>TikTok Factory</span></a>
+          <a class="sb-sub-item" routerLink="/calendario"     routerLinkActive="active"><span class="sb-sub-dot"></span><span>Calendario</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/plantillas"     routerLinkActive="active"><span class="sb-sub-dot"></span><span>Plantillas</span><span class="sb-soon">Soon</span></a>
+        </div>
+      </div>
+
+      <!-- ── Business Intelligence ── -->
+      <div class="sb-group">
+        <button class="sb-group-hdr" (click)="toggle('bi')" [class.open]="isOpen('bi')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+          </span>
+          <span class="sb-label">Business Intelligence</span>
+          <svg class="sb-arrow" [class.rotated]="isOpen('bi')" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sb-sub" [class.open]="isOpen('bi')">
+          <a class="sb-sub-item" routerLink="/analytics"    routerLinkActive="active"><span class="sb-sub-dot"></span><span>Analytics</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/rentabilidad" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Rentabilidad</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/portafolio"   routerLinkActive="active"><span class="sb-sub-dot"></span><span>Portafolio</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/top-productos" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Top Productos</span><span class="sb-soon">Soon</span></a>
+        </div>
+      </div>
+
+      <!-- ── Automatizacion ── -->
+      <div class="sb-group">
+        <button class="sb-group-hdr" (click)="toggle('auto')" [class.open]="isOpen('auto')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M6.34 17.66l-1.41 1.41M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M12 2v2M12 20v2"/>
+            </svg>
+          </span>
+          <span class="sb-label">Automatizacion</span>
+          <svg class="sb-arrow" [class.rotated]="isOpen('auto')" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sb-sub" [class.open]="isOpen('auto')">
+          <a class="sb-sub-item" routerLink="/automatizacion/monitoreo" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Centro de Monitoreo</span></a>
+          <a class="sb-sub-item" routerLink="/scrapers"  routerLinkActive="active"><span class="sb-sub-dot"></span><span>Scrapers</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/procesos"  routerLinkActive="active"><span class="sb-sub-dot"></span><span>Procesos</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/logs"      routerLinkActive="active"><span class="sb-sub-dot"></span><span>Logs</span><span class="sb-soon">Soon</span></a>
+        </div>
+      </div>
+
+      <!-- ── Administracion ── -->
+      <div class="sb-group sb-group-bottom">
+        <button class="sb-group-hdr" (click)="toggle('adm')" [class.open]="isOpen('adm')">
+          <span class="sb-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7"/>
+            </svg>
+          </span>
+          <span class="sb-label">Administracion</span>
+          <svg class="sb-arrow" [class.rotated]="isOpen('adm')" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sb-sub" [class.open]="isOpen('adm')">
+          <a class="sb-sub-item" routerLink="/usuarios"      routerLinkActive="active"><span class="sb-sub-dot"></span><span>Usuarios</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/tiendas"       routerLinkActive="active"><span class="sb-sub-dot"></span><span>Tiendas</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/canales"       routerLinkActive="active"><span class="sb-sub-dot"></span><span>Canales</span><span class="sb-soon">Soon</span></a>
+          <a class="sb-sub-item" routerLink="/configuracion" routerLinkActive="active"><span class="sb-sub-dot"></span><span>Configuracion</span><span class="sb-soon">Soon</span></a>
+        </div>
+      </div>
+
+    </nav>
+
+    <!-- Footer -->
+    <div class="sb-footer">
+      <div class="sb-avatar">PH</div>
+      <div class="sb-footer-info">
+        <span class="sb-footer-name">Admin</span>
+        <span class="sb-footer-role">{{ s.isAdmin ? 'Super Admin' : 'Viewer' }}</span>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══════════════ MAIN ══════════════ -->
+  <div class="layout-main">
+
+    <!-- HEADER -->
+    <header class="layout-header">
+
+      <!-- Search -->
+      <div class="h-search-wrap">
+        <span class="h-search-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </span>
+        <input class="h-search-input" [(ngModel)]="headerSearch" placeholder="Buscar productos, tiendas, categorias..." (keyup.enter)="onSearch()" />
+        <button class="h-search-clear" *ngIf="headerSearch" (click)="clearHeaderSearch()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Right side -->
+      <div class="h-right">
+
+        <!-- Sync -->
+        <div class="h-sync">
+          <span class="h-sync-dot"></span>
+          <span class="h-sync-label">Sync {{ s.lastSyncLabel }}</span>
+        </div>
+
+        <!-- Notifications -->
+        <button class="h-btn" routerLink="/alertas" title="Alertas">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="h-notif-badge" *ngIf="s.alertsTotal > 0">{{ s.alertsTotal > 99 ? '99+' : s.alertsTotal }}</span>
+        </button>
+
+        <!-- Scrape (admin only) -->
+        <div class="h-scrape-wrap" *ngIf="s.isAdmin">
+          <button class="h-btn h-scrape" (click)="s.triggerScrape()" [disabled]="s.scraping" title="Raspar ahora">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" [class.spin]="s.scraping">
+              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </button>
+          <span class="h-scrape-status" *ngIf="s.scraping">Raspando...</span>
+          <span class="h-scrape-status h-scrape-ok" *ngIf="!s.scraping && s.scrapeMsg">{{ s.scrapeMsg }}</span>
+        </div>
+
+        <!-- Divider -->
+        <div class="h-divider"></div>
+
+        <!-- User + Profile dropdown -->
+        <div class="h-user-wrap">
+          <div class="h-user" (click)="toggleProfile()">
+            <div class="h-avatar" [class.h-avatar-admin]="s.isAdmin">PH</div>
+            <div class="h-user-info">
+              <span class="h-user-name">Admin</span>
+              <span class="h-user-role">{{ s.isAdmin ? 'Super Admin' : 'Viewer' }}</span>
+            </div>
+            <svg class="h-user-chevron" [class.rotated]="profileOpen"
+                 width="12" height="12" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+
+          <!-- Dropdown panel -->
+          <div class="profile-panel" *ngIf="profileOpen">
+
+            <!-- Header del panel -->
+            <div class="pp-header">
+              <div class="pp-avatar" [class.pp-avatar-admin]="s.isAdmin">PH</div>
+              <div>
+                <p class="pp-name">Admin</p>
+                <p class="pp-role" [class.pp-role-admin]="s.isAdmin">
+                  {{ s.isAdmin ? '🔑 Super Admin' : 'Viewer' }}
+                </p>
+              </div>
+            </div>
+
+            <div class="pp-divider"></div>
+
+            <!-- Sección admin activo -->
+            <ng-container *ngIf="s.isAdmin">
+              <p class="pp-section-label">Herramientas Admin</p>
+              <button class="pp-action-btn pp-scrape"
+                      (click)="s.triggerScrape(); profileOpen=false"
+                      [disabled]="s.scraping">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                     [class.spin]="s.scraping">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                {{ s.scraping ? 'Raspando...' : 'Ejecutar Scraping' }}
+              </button>
+              <div class="pp-divider"></div>
+              <button class="pp-action-btn pp-logout" (click)="deactivateAdmin()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Salir modo Admin
+              </button>
+            </ng-container>
+
+            <!-- Sección activar admin -->
+            <ng-container *ngIf="!s.isAdmin">
+              <p class="pp-section-label">Acceso Administrador</p>
+              <div class="pp-key-wrap">
+                <input class="pp-key-input" type="password"
+                       [(ngModel)]="adminKeyInput"
+                       placeholder="Clave de acceso"
+                       (keyup.enter)="activateAdmin()" />
+                <button class="pp-key-btn" (click)="activateAdmin()">Entrar</button>
+              </div>
+              <p class="pp-key-error" *ngIf="adminKeyError">{{ adminKeyError }}</p>
+            </ng-container>
+
+          </div>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="layout-content">
+      <router-outlet></router-outlet>
+    </main>
+
+  </div>
+</div>

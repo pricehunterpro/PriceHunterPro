@@ -1,0 +1,228 @@
+<!-- ══════════════════════════════════════════════
+     KPIs
+══════════════════════════════════════════════ -->
+<section class="stats-grid ai-kpis">
+
+  <article class="stat-card ai-card-score">
+    <p class="stat-label">Total analizadas</p>
+    <h3>{{ kpis.totalAnalizadas }}</h3>
+    <p class="stat-sub">oportunidades evaluadas</p>
+  </article>
+
+  <article class="stat-card ai-card-extreme">
+    <p class="stat-label">🔥 Gangas Extremas</p>
+    <h3>{{ kpis.gangasExtremas }}</h3>
+    <p class="stat-sub">score ≥ 95</p>
+  </article>
+
+  <article class="stat-card ai-card-excellent">
+    <p class="stat-label">✅ Excelentes Ofertas</p>
+    <h3>{{ kpis.excelentesOfertas }}</h3>
+    <p class="stat-sub">score 80 – 94</p>
+  </article>
+
+  <article class="stat-card ai-card-avg">
+    <p class="stat-label">Promedio Score</p>
+    <h3>{{ kpis.promedioScore }}</h3>
+    <p class="stat-sub">/ 100 puntos</p>
+  </article>
+
+</section>
+
+<!-- ══════════════════════════════════════════════
+     FILTROS
+══════════════════════════════════════════════ -->
+<section class="toolbar ai-toolbar">
+
+  <label class="select-box">
+    <span>Tienda</span>
+    <select [(ngModel)]="filterStore" (ngModelChange)="applyFilters()">
+      <option value="">Todas</option>
+      <option *ngFor="let st of stores" [value]="st">{{ st }}</option>
+    </select>
+  </label>
+
+  <label class="select-box">
+    <span>Categoría</span>
+    <select [(ngModel)]="filterCategory" (ngModelChange)="applyFilters()">
+      <option value="">Todas</option>
+      <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
+    </select>
+  </label>
+
+  <label class="select-box">
+    <span>Clasificación</span>
+    <select [(ngModel)]="filterClasificacion" (ngModelChange)="applyFilters()">
+      <option value="">Todas</option>
+      <option value="Ganga Extrema">🔥 Ganga Extrema</option>
+      <option value="Excelente Oferta">✅ Excelente Oferta</option>
+      <option value="Buena Oferta">🟡 Buena Oferta</option>
+      <option value="Oferta Normal">⚪ Oferta Normal</option>
+    </select>
+  </label>
+
+  <label class="select-box">
+    <span>Score mínimo</span>
+    <select [(ngModel)]="filterMinScore" (ngModelChange)="applyFilters()">
+      <option [value]="0">Todos</option>
+      <option [value]="60">60+</option>
+      <option [value]="80">80+</option>
+      <option [value]="95">95+</option>
+    </select>
+  </label>
+
+  <label class="select-box">
+    <span>Ordenar</span>
+    <select [(ngModel)]="sortBy" (ngModelChange)="applyFilters()">
+      <option value="score">Mayor score</option>
+      <option value="discount">Mayor descuento</option>
+      <option value="margin">Mayor margen</option>
+      <option value="price_asc">Precio menor a mayor</option>
+    </select>
+  </label>
+
+  <button class="ghost-btn" (click)="clearFilters()">Limpiar</button>
+  <button class="primary-btn" (click)="load()">
+    <span *ngIf="!loading">Analizar</span>
+    <span *ngIf="loading">Analizando...</span>
+  </button>
+  <button class="scrape-btn" (click)="s.triggerScrape()" [disabled]="s.scraping" title="Lanzar scrapers ahora">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" [class.spin]="s.scraping">
+      <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+    </svg>
+    <span>{{ s.scraping ? 'Raspando...' : 'Raspar ahora' }}</span>
+  </button>
+
+</section>
+
+<!-- ══════════════════════════════════════════════
+     TABLA PRINCIPAL
+══════════════════════════════════════════════ -->
+<section class="table-card ai-table-card">
+
+  <div class="section-header">
+    <div>
+      <h2>🤖 Motor IA — PriceHunter Score</h2>
+      <p>{{ total }} oportunidades analizadas · ordenadas por score</p>
+    </div>
+    <div class="ai-legend">
+      <span class="badge-extreme">🔥 Extrema ≥95</span>
+      <span class="badge-excellent">✅ Excelente ≥80</span>
+      <span class="badge-good">🟡 Buena ≥60</span>
+      <span class="badge-normal">⚪ Normal</span>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="alerts-loading">Calculando scores con IA...</div>
+  <div *ngIf="error"   class="error-row">{{ error }}</div>
+
+  <div class="table-wrap" *ngIf="!loading && !error">
+
+    <!-- HEAD -->
+    <div class="ai-head">
+      <span>#</span>
+      <span>Producto</span>
+      <span>Tienda</span>
+      <span class="right">Precio</span>
+      <span class="right">Histórico</span>
+      <span class="center">Dscto.</span>
+      <span class="center">Margen</span>
+      <span class="center">Score</span>
+      <span>Clasificación</span>
+      <span>Recomendación</span>
+      <span>Acción</span>
+    </div>
+
+    <!-- ROWS -->
+    <div class="ai-row" *ngFor="let deal of deals; let i = index"
+         [class.ai-row-extreme]="deal.clasificacion === 'Ganga Extrema'"
+         [class.ai-row-excellent]="deal.clasificacion === 'Excelente Oferta'">
+
+      <!-- # -->
+      <span class="rank"
+            [ngClass]="i===0&&currentPage===1?'gold':i===1&&currentPage===1?'silver':i===2&&currentPage===1?'bronze':''">
+        {{ (currentPage-1)*pageSize + i + 1 }}
+      </span>
+
+      <!-- Producto -->
+      <div class="product-cell">
+        <strong>{{ deal.name }}</strong>
+        <span class="ai-category-tag">{{ deal.category }}</span>
+        <span class="below-market-badge" *ngIf="deal.belowMarket">
+          🔥 {{ deal.mktDiffPct }}% bajo mercado
+        </span>
+        <span class="stock" *ngIf="!deal.inStock">Sin stock</span>
+      </div>
+
+      <!-- Tienda -->
+      <span class="store-pill" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
+
+      <!-- Precio actual -->
+      <span class="price-value right">{{ s.formatCurrency(deal.currentPrice) }}</span>
+
+      <!-- Precio histórico -->
+      <span class="right" [class.muted]="!deal.avgMarketPrice">
+        {{ deal.avgMarketPrice ? s.formatCurrency(deal.avgMarketPrice) : '—' }}
+      </span>
+
+      <!-- Descuento -->
+      <span class="discount-pill center">-{{ deal.discountPct.toFixed(0) }}%</span>
+
+      <!-- Margen -->
+      <span class="margin-pill center"
+            [ngClass]="deal.marginPct>=50?'good':deal.marginPct>=25?'warn':'bad'">
+        +{{ deal.marginPct.toFixed(0) }}%
+      </span>
+
+      <!-- Score -->
+      <div class="ai-score-cell center">
+        <div class="ai-score-ring" [ngClass]="scoreClass(deal.score)">
+          <span>{{ deal.score }}</span>
+        </div>
+        <div class="ai-score-bar-wrap">
+          <div class="ai-score-bar"
+               [style.width.%]="deal.score"
+               [style.background]="scoreBar(deal.score)"></div>
+        </div>
+        <span class="ai-explain" [title]="deal.explicacion">{{ deal.explicacion }}</span>
+      </div>
+
+      <!-- Clasificación -->
+      <span class="ai-badge" [ngClass]="badgeClass(deal.clasificacion)">
+        {{ deal.clasificacionEmoji }}
+      </span>
+
+      <!-- Recomendación -->
+      <span class="ai-recom" [ngClass]="recomClass(deal.recomendacion)">
+        {{ deal.recomendacion }}
+      </span>
+
+      <!-- Acción -->
+      <div class="ai-actions">
+        <a class="buy-btn ai-action-buy" [href]="deal.url" target="_blank" rel="noreferrer">
+          Ver ↗
+        </a>
+        <button class="ai-action-pub" (click)="enviarPublicador(deal)"
+                [title]="'Enviar a Publicador IA'"
+                *ngIf="deal.score >= 60">
+          📤
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Empty -->
+    <div class="alerts-empty" *ngIf="deals.length === 0">
+      No se encontraron oportunidades con los filtros aplicados.
+    </div>
+
+  </div>
+
+  <!-- Paginación -->
+  <div class="pagination" *ngIf="totalPages > 1">
+    <button class="page-btn" (click)="goToPage(currentPage-1)" [disabled]="currentPage===1">← Anterior</button>
+    <span class="page-info">Página {{ currentPage }} de {{ totalPages }}</span>
+    <button class="page-btn" (click)="goToPage(currentPage+1)" [disabled]="currentPage===totalPages">Siguiente →</button>
+  </div>
+
+</section>

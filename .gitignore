@@ -1,0 +1,37 @@
+# === Secrets / entorno ===
+.env
+*.env.local
+
+# === Python ===
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# === Celery ===
+backend/celerybeat-schedule
+celerybeat-schedule
+celerybeat.pid
+
+# === Node / Angular ===
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+npm-debug.log*
+
+# === Editores / SO ===
+.vscode/
+.idea/
+.claude/
+*.swp
+.DS_Store
+Thumbs.db
+
+# === Logs / temporales ===
+*.log
+tmp_*.py

@@ -1,0 +1,220 @@
+<!-- ══ KPIs ══ -->
+<section class="stats-grid tt-kpis">
+  <article class="stat-card tt-kpi-pend">
+    <p class="stat-label">Pendientes</p>
+    <h3>{{ kpis.pendientes }}</h3>
+    <p class="stat-sub">en cola</p>
+  </article>
+  <article class="stat-card tt-kpi-gen">
+    <p class="stat-label">Generados</p>
+    <h3>{{ kpis.generados }}</h3>
+    <p class="stat-sub">listos para revisar</p>
+  </article>
+  <article class="stat-card tt-kpi-sched">
+    <p class="stat-label">Programados</p>
+    <h3>{{ kpis.programados }}</h3>
+    <p class="stat-sub">en agenda</p>
+  </article>
+  <article class="stat-card tt-kpi-pub">
+    <p class="stat-label">Publicados</p>
+    <h3>{{ kpis.publicados }}</h3>
+    <p class="stat-sub">en TikTok</p>
+  </article>
+  <article class="stat-card tt-kpi-err">
+    <p class="stat-label">Con Error</p>
+    <h3>{{ kpis.errores }}</h3>
+    <p class="stat-sub">requieren atención</p>
+  </article>
+</section>
+
+<!-- ══ BODY: queue + preview ══ -->
+<div class="tt-body">
+
+  <!-- ── Cola de producción ── -->
+  <section class="table-card tt-queue-card">
+    <div class="section-header">
+      <div>
+        <h2>🎬 Cola de Producción</h2>
+        <p>{{ videos.length }} videos · click para previsualizar</p>
+      </div>
+      <button class="primary-btn" (click)="load()">↻ Actualizar</button>
+    </div>
+
+    <div *ngIf="loading" class="alerts-loading">Cargando videos...</div>
+
+    <div class="table-wrap" *ngIf="!loading">
+      <div class="tt-head">
+        <span>Producto</span>
+        <span>Tienda</span>
+        <span class="center">Dscto.</span>
+        <span class="center">Score</span>
+        <span class="center">Estado</span>
+        <span>Fecha</span>
+        <span class="center">Acciones</span>
+      </div>
+
+      <div class="tt-row" *ngFor="let v of videos"
+           [class.tt-row-selected]="selected?.id === v.id"
+           (click)="select(v)">
+
+        <div class="tt-product-cell">
+          <img *ngIf="v.imageUrl" [src]="v.imageUrl" class="tt-thumb" alt="" />
+          <div class="tt-thumb-placeholder" *ngIf="!v.imageUrl">🎬</div>
+          <div>
+            <strong class="tt-product-name">{{ v.titulo }}</strong>
+            <span class="tt-cat-tag">{{ v.category }}</span>
+          </div>
+        </div>
+
+        <span class="store-pill" [ngClass]="storeClass(v.store)">{{ v.store }}</span>
+
+        <span class="discount-pill center">-{{ v.discountPct }}%</span>
+
+        <span class="center">
+          <span class="tt-score" [style.color]="scoreColor(v.scoreIA)">{{ v.scoreIA }}</span>
+        </span>
+
+        <span class="center">
+          <span class="tt-status" [ngClass]="statusClass(v.estado)">{{ v.estado }}</span>
+        </span>
+
+        <span class="muted tt-date">
+          {{ v.fechaProgramada ? v.fechaProgramada : (v.createdAt | date:'dd/MM HH:mm') }}
+        </span>
+
+        <div class="tt-actions" (click)="$event.stopPropagation()">
+          <button class="tt-btn tt-btn-gen"
+                  *ngIf="v.estado === 'Pendiente' || v.estado === 'Error'"
+                  (click)="generate(v)" title="Generar video">▶</button>
+          <button class="tt-btn tt-btn-apro"
+                  *ngIf="v.estado === 'Generado'"
+                  (click)="approve(v)" title="Aprobar">✓</button>
+          <button class="tt-btn tt-btn-sched"
+                  *ngIf="v.estado === 'Aprobado'"
+                  (click)="select(v); showScheduler=true" title="Programar">📅</button>
+          <button class="tt-btn tt-btn-pub"
+                  *ngIf="v.estado === 'Programado'"
+                  (click)="publish(v)" title="Publicar ahora">🚀</button>
+          <button class="tt-btn tt-btn-del"
+                  (click)="remove(v)" title="Eliminar">✕</button>
+        </div>
+      </div>
+
+      <div class="alerts-empty" *ngIf="videos.length === 0">
+        No hay videos en la cola. Genera contenido desde Motor IA.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Panel derecho ── -->
+  <aside class="tt-right-panel" *ngIf="selected; else noSelection">
+
+    <!-- Preview 9:16 -->
+    <div class="tt-preview-wrap">
+      <h3 class="tt-panel-title">📱 Preview</h3>
+      <div class="tt-preview">
+        <!-- BG blur -->
+        <div class="tt-preview-bg" [style.background-image]="selected.imageUrl ? 'url(' + selected.imageUrl + ')' : ''"></div>
+        <div class="tt-preview-overlay"></div>
+
+        <!-- Logo top -->
+        <div class="tt-preview-logo" *ngIf="selected.logoPos === 'Superior'">
+          <span class="tt-logo-chip">PriceHunter Pro</span>
+        </div>
+
+        <!-- Discount badge -->
+        <div class="tt-preview-badge">-{{ selected.discountPct }}% OFF</div>
+
+        <!-- Product image -->
+        <div class="tt-preview-img-wrap">
+          <img *ngIf="selected.imageUrl" [src]="selected.imageUrl" class="tt-preview-img" alt="" />
+          <div class="tt-preview-img-ph" *ngIf="!selected.imageUrl">🎬</div>
+        </div>
+
+        <!-- Info bottom -->
+        <div class="tt-preview-info">
+          <p class="tt-prev-name">{{ selected.titulo | slice:0:40 }}</p>
+          <div class="tt-prev-prices">
+            <span class="tt-prev-old">S/{{ selected.originalPrice.toFixed(2) }}</span>
+            <span class="tt-prev-new">S/{{ selected.currentPrice.toFixed(2) }}</span>
+          </div>
+          <span class="tt-prev-store store-pill" [ngClass]="storeClass(selected.store)">{{ selected.store }}</span>
+          <div class="tt-prev-tags">
+            <span *ngFor="let tag of selected.hashtags">{{ tag }}</span>
+          </div>
+        </div>
+
+        <!-- Logo bottom -->
+        <div class="tt-preview-logo-bot" *ngIf="selected.logoPos === 'Inferior'">
+          <span class="tt-logo-chip">PriceHunter Pro</span>
+        </div>
+
+        <!-- Duration tag -->
+        <div class="tt-preview-dur">{{ selected.duracion }}s · {{ selected.animacion }}</div>
+      </div>
+    </div>
+
+    <!-- Config -->
+    <div class="tt-config-card">
+      <h3 class="tt-panel-title">⚙️ Configuración</h3>
+      <div class="tt-config-grid">
+        <label class="tt-cfg-label">
+          <span>Plantilla</span>
+          <select [(ngModel)]="cfgPlantilla">
+            <option *ngFor="let p of plantillas" [value]="p">{{ p }}</option>
+          </select>
+        </label>
+        <label class="tt-cfg-label">
+          <span>Duración</span>
+          <select [(ngModel)]="cfgDuracion">
+            <option *ngFor="let d of duraciones" [value]="d">{{ d }} seg</option>
+          </select>
+        </label>
+        <label class="tt-cfg-label">
+          <span>Animación</span>
+          <select [(ngModel)]="cfgAnimacion">
+            <option *ngFor="let a of animaciones" [value]="a">{{ a }}</option>
+          </select>
+        </label>
+        <label class="tt-cfg-label">
+          <span>Logo</span>
+          <select [(ngModel)]="cfgLogoPos">
+            <option *ngFor="let l of logoPosOpts" [value]="l">{{ l }}</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <!-- Script IA -->
+    <div class="tt-script-card">
+      <div class="tt-script-header">
+        <h3 class="tt-panel-title">🤖 Guion IA</h3>
+        <button class="ghost-btn tt-regen-btn" (click)="regenerateGuion()" [disabled]="regenerating">
+          {{ regenerating ? '...' : '↻ Regenerar' }}
+        </button>
+      </div>
+      <textarea class="tt-script-area" [(ngModel)]="guionEdit" rows="12"></textarea>
+    </div>
+
+    <!-- Scheduler -->
+    <div class="tt-scheduler" *ngIf="showScheduler && selected">
+      <h4>📅 Programar publicación</h4>
+      <input type="datetime-local" class="tt-date-input" [(ngModel)]="scheduleDate" />
+      <div class="tt-sched-btns">
+        <button class="primary-btn" (click)="schedule(selected)">Confirmar</button>
+        <button class="ghost-btn" (click)="showScheduler=false">Cancelar</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <ng-template #noSelection>
+    <aside class="tt-right-panel tt-empty-panel">
+      <div class="tt-empty-hint">
+        <span class="tt-empty-icon">🎬</span>
+        <p>Selecciona un video de la cola para previsualizar y configurar</p>
+      </div>
+    </aside>
+  </ng-template>
+
+</div>

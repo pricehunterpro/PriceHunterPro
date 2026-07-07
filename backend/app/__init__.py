@@ -1,0 +1,1 @@
+"""PriceHunter Pro backend package."""

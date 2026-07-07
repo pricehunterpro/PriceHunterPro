@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PriceHunter Pro — Arquitectura</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f0f11; color: #f0f0f2; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #0f0f11, #1a1a2e);
+    border-bottom: 1px solid rgba(0,229,160,0.2);
+    padding: 32px 40px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo-dot { width: 14px; height: 14px; border-radius: 50%; background: #00e5a0; box-shadow: 0 0 0 6px rgba(0,229,160,0.15); }
+  header h1 { font-size: 1.6rem; font-weight: 700; color: #fff; }
+  header p { color: #9999a8; font-size: 0.9rem; margin-top: 4px; }
+
+  .page { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+
+  /* SECTION */
+  .section { margin-bottom: 56px; }
+  .section-title {
+    font-size: 1.1rem; font-weight: 700; color: #00e5a0;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 24px; display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: rgba(0,229,160,0.15); }
+
+  /* STACK GRID */
+  .stack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .stack-card {
+    background: #17171a; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 20px; transition: border-color 0.2s;
+  }
+  .stack-card:hover { border-color: rgba(0,229,160,0.3); }
+  .stack-icon { font-size: 2rem; margin-bottom: 10px; }
+  .stack-name { font-weight: 700; font-size: 1rem; color: #fff; margin-bottom: 4px; }
+  .stack-desc { font-size: 0.78rem; color: #9999a8; line-height: 1.5; }
+  .stack-badge {
+    display: inline-block; font-size: 0.68rem; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px; margin-top: 8px;
+  }
+  .badge-green { background: rgba(0,229,160,0.12); color: #00e5a0; }
+  .badge-blue  { background: rgba(59,130,246,0.12); color: #60a5fa; }
+  .badge-purple{ background: rgba(139,92,246,0.12); color: #a78bfa; }
+  .badge-orange{ background: rgba(251,146,60,0.12); color: #fb923c; }
+  .badge-red   { background: rgba(239,68,68,0.12);  color: #f87171; }
+
+  /* FLOW */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step {
+    display: flex; align-items: flex-start; gap: 20px;
+    background: #17171a; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 20px 24px; position: relative;
+  }
+  .flow-step + .flow-step { margin-top: 4px; border-radius: 14px; }
+  .flow-connector {
+    display: flex; justify-content: flex-start; padding-left: 36px;
+    color: rgba(0,229,160,0.4); font-size: 1.4rem; line-height: 1; margin: 0;
+  }
+  .step-num {
+    min-width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(0,229,160,0.12); color: #00e5a0;
+    font-weight: 700; font-size: 0.9rem;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-body { flex: 1; }
+  .step-title { font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .step-detail { font-size: 0.82rem; color: #9999a8; line-height: 1.6; }
+  .step-tags { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    font-size: 0.7rem; padding: 2px 8px; border-radius: 10px;
+    background: rgba(255,255,255,0.06); color: #9999a8;
+  }
+
+  /* SCRAPERS */
+  .scrapers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .scraper-card {
+    background: #17171a; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 18px 20px;
+  }
+  .scraper-name { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+  .scraper-method { font-size: 0.75rem; color: #9999a8; margin-bottom: 10px; }
+  .scraper-cats { font-size: 0.75rem; color: #00e5a0; margin-bottom: 10px; }
+  .scraper-stock { font-size: 0.75rem; color: #fbbf24; }
+  .status-ok   { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #00e5a0; margin-right: 6px; }
+  .status-warn { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; margin-right: 6px; }
+  .status-off  { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f87171; margin-right: 6px; }
+
+  /* SCHEDULE */
+  .schedule { display: flex; flex-wrap: wrap; gap: 12px; }
+  .sched-pill {
+    background: #17171a; border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 40px; padding: 10px 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sched-time { font-weight: 700; font-size: 1rem; color: #00e5a0; }
+  .sched-label { font-size: 0.78rem; color: #9999a8; }
+
+  /* TELEGRAM */
+  .tg-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 12px; }
+  .tg-box {
+    background: #17171a; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 16px; text-align: center;
+  }
+  .tg-box .icon { font-size: 2rem; margin-bottom: 8px; }
+  .tg-box .label { font-size: 0.82rem; color: #9999a8; }
+  .tg-box .name { font-weight: 700; font-size: 0.9rem; color: #fff; margin-bottom: 4px; }
+  .tg-arrow { text-align: center; color: rgba(0,229,160,0.5); font-size: 1.5rem; }
+
+  /* DB TABLES */
+  .db-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .db-table {
+    background: #17171a; border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 12px; overflow: hidden;
+  }
+  .db-table-name {
+    background: rgba(59,130,246,0.1); color: #60a5fa;
+    font-weight: 700; font-size: 0.82rem; padding: 10px 14px;
+    border-bottom: 1px solid rgba(59,130,246,0.15);
+  }
+  .db-col { font-size: 0.75rem; padding: 5px 14px; color: #9999a8; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .db-col:last-child { border: none; }
+  .db-col span { color: #a78bfa; }
+
+  /* ALERT SAMPLE */
+  .alert-sample {
+    background: #1a2420; border: 1px solid rgba(0,229,160,0.25);
+    border-radius: 14px; padding: 20px 24px; max-width: 380px;
+    font-size: 0.88rem; line-height: 1.8;
+  }
+  .alert-sample b { color: #fff; }
+  .alert-sample .price-now { color: #00e5a0; font-weight: 700; }
+  .alert-sample .price-old { color: #9999a8; text-decoration: line-through; }
+  .alert-sample .pct { color: #fbbf24; }
+  .alert-sample a { color: #60a5fa; }
+
+  /* BACKLOG */
+  .backlog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .backlog-item {
+    background: #17171a; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .backlog-icon { font-size: 1.4rem; flex-shrink: 0; }
+  .backlog-title { font-weight: 600; font-size: 0.88rem; color: #fff; margin-bottom: 4px; }
+  .backlog-desc { font-size: 0.75rem; color: #9999a8; line-height: 1.5; }
+
+  footer {
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding: 24px 40px; color: #55555f; font-size: 0.8rem;
+    display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-dot"></div>
+  <div>
+    <h1>PriceHunter Pro</h1>
+    <p>Arquitectura del sistema — Junio 2026</p>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- STACK -->
+  <div class="section">
+    <div class="section-title">Stack tecnológico</div>
+    <div class="stack-grid">
+      <div class="stack-card">
+        <div class="stack-icon">⚡</div>
+        <div class="stack-name">Angular 17</div>
+        <div class="stack-desc">Frontend SPA. Vistas: Oportunidades, Gangas, Alertas. Filtros reactivos, paginación, calculadora de margen.</div>
+        <span class="stack-badge badge-green">Frontend</span>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon">🐍</div>
+        <div class="stack-name">FastAPI</div>
+        <div class="stack-desc">API REST. Endpoints: /deals, /deals/stats, /deals/scrape/trigger. Acceso admin por URL secreta.</div>
+        <span class="stack-badge badge-blue">Backend</span>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon">🌿</div>
+        <div class="stack-name">Celery + Beat</div>
+        <div class="stack-desc">Worker asíncrono para raspado. Beat ejecuta el cron automático 6 veces al día en zona horaria Lima.</div>
+        <span class="stack-badge badge-purple">Worker</span>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon">🗄️</div>
+        <div class="stack-name">PostgreSQL 15</div>
+        <div class="stack-desc">Base de datos principal. Tablas: products, store_products, price_history, scraping_logs.</div>
+        <span class="stack-badge badge-blue">Base de datos</span>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon">⚡</div>
+        <div class="stack-name">Redis 7</div>
+        <div class="stack-desc">Broker de mensajes para Celery. Cache de alertas ya notificadas (TTL 24h para evitar spam).</div>
+        <span class="stack-badge badge-red">Cache / Broker</span>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon">🌐</div>
+        <div class="stack-name">Nginx</div>
+        <div class="stack-desc">Reverse proxy. Enruta /api → FastAPI (8000) y / → Angular (4200). Todo en puerto 80.</div>
+        <span class="stack-badge badge-orange">Proxy</span>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon">🐳</div>
+        <div class="stack-name">Docker Compose</div>
+        <div class="stack-desc">7 servicios orquestados: postgres, redis, backend, celery-worker, celery-beat, frontend, nginx.</div>
+        <span class="stack-badge badge-blue">Infraestructura</span>
+      </div>
+      <div class="stack-card">
+        <div class="stack-icon">✈️</div>
+        <div class="stack-name">Telegram Bot API</div>
+        <div class="stack-desc">Notificaciones push gratuitas. Envía foto + precio + link al chat privado del admin y al canal OfertasFlash.</div>
+        <span class="stack-badge badge-green">Notificaciones</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLUJO PRINCIPAL -->
+  <div class="section">
+    <div class="section-title">Flujo principal del sistema</div>
+    <div class="flow">
+
+      <div class="flow-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">🕐 Celery Beat dispara el raspado</div>
+          <div class="step-detail">El scheduler ejecuta la tarea <code>scrape_all_stores</code> según el cron configurado en zona horaria America/Lima. También puede dispararse manualmente desde la URL secreta <code>/?key=ph2026</code>.</div>
+          <div class="step-tags"><span class="tag">Celery Beat</span><span class="tag">crontab</span><span class="tag">America/Lima</span></div>
+        </div>
+      </div>
+      <div class="flow-connector">↓</div>
+
+      <div class="flow-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">🕷️ Scrapers recorren las tiendas en paralelo</div>
+          <div class="step-detail">4 scrapers (Falabella, Ripley, PlazaVea, Oechsle) recorren todas las categorías configuradas. Cada uno valida stock usando el método nativo de la tienda antes de guardar el producto.</div>
+          <div class="step-tags"><span class="tag">httpx async</span><span class="tag">BeautifulSoup</span><span class="tag">VTEX API</span><span class="tag">Next.js __NEXT_DATA__</span></div>
+        </div>
+      </div>
+      <div class="flow-connector">↓</div>
+
+      <div class="flow-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">💾 Upsert en PostgreSQL</div>
+          <div class="step-detail">Cada producto se inserta o actualiza en <code>store_products</code>. Si el precio cambió, se agrega un registro en <code>price_history</code>. Al terminar el scraping, los productos que no aparecieron en este raspado se marcan como <code>in_stock=false</code>.</div>
+          <div class="step-tags"><span class="tag">SQLAlchemy</span><span class="tag">upsert</span><span class="tag">price_history</span><span class="tag">mark stale</span></div>
+        </div>
+      </div>
+      <div class="flow-connector">↓</div>
+
+      <div class="flow-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">🔔 Detección de alertas y envío a Telegram</div>
+          <div class="step-detail">Al terminar el raspado, se consultan productos cuyo precio actual está al menos 15% por debajo de su promedio histórico (mín. 2 registros de más de 12h). Las nuevas alertas (no en Redis) se envían con foto al chat privado del admin y al canal OfertasFlash. Se guarda en Redis con TTL 24h para no repetir.</div>
+          <div class="step-tags"><span class="tag">CTE SQL</span><span class="tag">avg histórico</span><span class="tag">Redis TTL 24h</span><span class="tag">sendPhoto</span></div>
+        </div>
+      </div>
+      <div class="flow-connector">↓</div>
+
+      <div class="flow-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">🖥️ Usuario consulta la app</div>
+          <div class="step-detail">El frontend Angular consume la API FastAPI. La vista Oportunidades muestra todos los productos en stock ordenados por descuento. Gangas filtra ≥40% de descuento. Alertas filtra productos bajo su precio histórico con badge de frescura por producto.</div>
+          <div class="step-tags"><span class="tag">Angular</span><span class="tag">ngModel</span><span class="tag">paginación</span><span class="tag">badge freshness</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCRAPERS -->
+  <div class="section">
+    <div class="section-title">Scrapers configurados</div>
+    <div class="scrapers-grid">
+
+      <div class="scraper-card">
+        <div class="scraper-name"><span class="status-ok"></span>Falabella</div>
+        <div class="scraper-method">📡 API JSON interna (Next.js)</div>
+        <div class="scraper-cats">31 categorías</div>
+        <div class="scraper-stock">✅ Stock: <code>meatStickers.length &gt; 0</code></div>
+      </div>
+
+      <div class="scraper-card">
+        <div class="scraper-name"><span class="status-ok"></span>Ripley</div>
+        <div class="scraper-method">📡 HTML + __NEXT_DATA__ JSON</div>
+        <div class="scraper-cats">13 categorías</div>
+        <div class="scraper-stock">✅ Stock: badges con "llega / retira / recíbelo"</div>
+      </div>
+
+      <div class="scraper-card">
+        <div class="scraper-name"><span class="status-ok"></span>Plaza Vea</div>
+        <div class="scraper-method">📡 VTEX Legacy Search API</div>
+        <div class="scraper-cats">17 categorías</div>
+        <div class="scraper-stock">✅ Stock: <code>IsAvailable == true</code></div>
+      </div>
+
+      <div class="scraper-card">
+        <div class="scraper-name"><span class="status-ok"></span>Oechsle</div>
+        <div class="scraper-method">📡 VTEX Legacy Search API</div>
+        <div class="scraper-cats">20 categorías</div>
+        <div class="scraper-stock">✅ Stock: <code>IsAvailable == true</code></div>
+      </div>
+
+      <div class="scraper-card">
+        <div class="scraper-name"><span class="status-off"></span>Tottus</div>
+        <div class="scraper-method">🚫 Bloqueado por WAF</div>
+        <div class="scraper-cats">Pendiente</div>
+        <div class="scraper-stock">⏳ Requiere Playwright headless</div>
+      </div>
+
+      <div class="scraper-card">
+        <div class="scraper-name"><span class="status-off"></span>Hiraoka</div>
+        <div class="scraper-method">🚫 Fastly + Cloudflare</div>
+        <div class="scraper-cats">Pendiente</div>
+        <div class="scraper-stock">⏳ Requiere Playwright headless</div>
+      </div>
+
+      <div class="scraper-card">
+        <div class="scraper-name"><span class="status-off"></span>Marathon</div>
+        <div class="scraper-method">🚫 Cloudflare 403</div>
+        <div class="scraper-cats">Pendiente</div>
+        <div class="scraper-stock">⏳ Requiere Playwright headless</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCHEDULE -->
+  <div class="section">
+    <div class="section-title">Horario de raspado automático (America/Lima)</div>
+    <div class="schedule">
+      <div class="sched-pill"><div class="sched-time">00:30</div><div class="sched-label">Madrugada</div></div>
+      <div class="sched-pill"><div class="sched-time">01:30</div><div class="sched-label">Madrugada</div></div>
+      <div class="sched-pill"><div class="sched-time">03:00</div><div class="sched-label">Madrugada</div></div>
+      <div class="sched-pill"><div class="sched-time">06:00</div><div class="sched-label">Mañana</div></div>
+      <div class="sched-pill"><div class="sched-time">12:00</div><div class="sched-label">Mediodía</div></div>
+      <div class="sched-pill"><div class="sched-time">20:00</div><div class="sched-label">Noche</div></div>
+    </div>
+  </div>
+
+  <!-- TELEGRAM FLOW -->
+  <div class="section">
+    <div class="section-title">Flujo de notificaciones Telegram</div>
+    <div class="tg-flow">
+      <div class="tg-box">
+        <div class="icon">🕷️</div>
+        <div class="name">Scraper termina</div>
+        <div class="label">Detecta precio ≥15% bajo histórico</div>
+      </div>
+      <div class="tg-arrow">→</div>
+      <div class="tg-box">
+        <div class="icon">⚡</div>
+        <div class="name">Redis check</div>
+        <div class="label">¿Ya notificado en 24h? Si sí → skip</div>
+      </div>
+      <div class="tg-arrow">→</div>
+      <div class="tg-box">
+        <div class="icon">✈️</div>
+        <div class="name">Bot PriceHunter Pro</div>
+        <div class="label">sendPhoto con caption HTML</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:24px; margin-top:24px; flex-wrap:wrap; align-items:flex-start;">
+      <div>
+        <p style="color:#9999a8; font-size:0.8rem; margin-bottom:10px;">Destinos del mensaje:</p>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div class="tg-box" style="min-width:160px;">
+            <div class="icon">👤</div>
+            <div class="name">Chat privado admin</div>
+            <div class="label">Primero — ventaja de segundos</div>
+          </div>
+          <div class="tg-box" style="min-width:160px;">
+            <div class="icon">📢</div>
+            <div class="name">Canal OfertasFlash 🔥</div>
+            <div class="label">Suscriptores aprobados</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p style="color:#9999a8; font-size:0.8rem; margin-bottom:10px;">Formato del mensaje:</p>
+        <div class="alert-sample">
+          🔥 <b>Alerta PriceHunter Pro</b><br>
+          📦 Samsung Galaxy Buds3 Pro Gray<br>
+          🏪 PLAZAVEA<br>
+          💰 <span class="price-now">S/ 399.00</span> <span class="price-old">S/ 899.00</span><br>
+          📉 <span class="pct">55.6% bajo su precio histórico</span><br>
+          🔗 <a href="#">Ver oferta</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BASE DE DATOS -->
+  <div class="section">
+    <div class="section-title">Modelo de base de datos</div>
+    <div class="db-grid">
+      <div class="db-table">
+        <div class="db-table-name">products</div>
+        <div class="db-col">id <span>uuid PK</span></div>
+        <div class="db-col">name <span>text</span></div>
+        <div class="db-col">brand <span>text</span></div>
+        <div class="db-col">category <span>text</span></div>
+        <div class="db-col">sku_normalized <span>text unique</span></div>
+        <div class="db-col">image_url <span>text</span></div>
+      </div>
+      <div class="db-table">
+        <div class="db-table-name">store_products</div>
+        <div class="db-col">id <span>uuid PK</span></div>
+        <div class="db-col">product_id <span>FK → products</span></div>
+        <div class="db-col">store <span>text</span></div>
+        <div class="db-col">current_price <span>numeric</span></div>
+        <div class="db-col">original_price <span>numeric</span></div>
+        <div class="db-col">discount_percentage <span>numeric</span></div>
+        <div class="db-col">in_stock <span>boolean</span></div>
+        <div class="db-col">last_scraped_at <span>timestamp</span></div>
+      </div>
+      <div class="db-table">
+        <div class="db-table-name">price_history</div>
+        <div class="db-col">id <span>uuid PK</span></div>
+        <div class="db-col">store_product_id <span>FK</span></div>
+        <div class="db-col">price <span>numeric</span></div>
+        <div class="db-col">original_price <span>numeric</span></div>
+        <div class="db-col">in_stock <span>boolean</span></div>
+        <div class="db-col">scraped_at <span>timestamp</span></div>
+      </div>
+      <div class="db-table">
+        <div class="db-table-name">scraping_logs</div>
+        <div class="db-col">id <span>uuid PK</span></div>
+        <div class="db-col">store <span>text</span></div>
+        <div class="db-col">status <span>success / error</span></div>
+        <div class="db-col">details <span>text</span></div>
+        <div class="db-col">error <span>text</span></div>
+        <div class="db-col">created_at <span>timestamp</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BACKLOG -->
+  <div class="section">
+    <div class="section-title">Backlog — próximas mejoras</div>
+    <div class="backlog">
+      <div class="backlog-item">
+        <div class="backlog-icon">🎭</div>
+        <div>
+          <div class="backlog-title">Playwright para tiendas bloqueadas</div>
+          <div class="backlog-desc">Tottus, Hiraoka y Marathon bloquean scrapers HTTP simples. Requiere navegador headless.</div>
+        </div>
+      </div>
+      <div class="backlog-item">
+        <div class="backlog-icon">📈</div>
+        <div>
+          <div class="backlog-title">Gráfico historial de precios</div>
+          <div class="backlog-desc">Sparkline en cada tarjeta mostrando la evolución del precio en los últimos 30 días.</div>
+        </div>
+      </div>
+      <div class="backlog-item">
+        <div class="backlog-icon">💸</div>
+        <div>
+          <div class="backlog-title">Links de afiliados</div>
+          <div class="backlog-desc">Integrar programas de afiliados de Falabella y Ripley para monetizar los clicks de compra.</div>
+        </div>
+      </div>
+      <div class="backlog-item">
+        <div class="backlog-icon">📱</div>
+        <div>
+          <div class="backlog-title">PWA / Soporte móvil</div>
+          <div class="backlog-desc">Convertir la app en Progressive Web App instalable en celular.</div>
+        </div>
+      </div>
+      <div class="backlog-item">
+        <div class="backlog-icon">⚡</div>
+        <div>
+          <div class="backlog-title">Redis caché de API</div>
+          <div class="backlog-desc">Cachear respuestas del endpoint /deals por 5 minutos para reducir carga en PostgreSQL.</div>
+        </div>
+      </div>
+      <div class="backlog-item">
+        <div class="backlog-icon">📄</div>
+        <div>
+          <div class="backlog-title">Paginación SQL real</div>
+          <div class="backlog-desc">Actualmente carga 5000 filas en Python y pagina en memoria. Migrar a LIMIT/OFFSET en SQL.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>PriceHunter Pro — Arquitectura v1.0</span>
+  <span>Junio 2026 · Stack: Angular + FastAPI + Celery + PostgreSQL + Redis + Telegram</span>
+</footer>
+
+</body>
+</html>
