@@ -5,12 +5,15 @@ import traceback
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_process_init
+from celery.utils.log import get_task_logger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 
 settings = get_settings()
+logger = get_task_logger(__name__)
 
 app = Celery("pricehunter", broker=settings.redis_url, backend=settings.redis_url)
 app.conf.task_serializer = "json"
@@ -40,18 +43,53 @@ app.conf.beat_schedule = {
 
 # Sync engine for Celery tasks (psycopg2, not asyncpg)
 _sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
-_engine = create_engine(_sync_url, pool_pre_ping=True)
+# pool_recycle evita que el pooler de Supabase corte conexiones idle largas.
+# executemany_mode acelera las escrituras masivas (execute_values/execute_batch
+# de psycopg2), clave con la latencia remota de Supabase.
+_engine = create_engine(
+    _sync_url, pool_pre_ping=True, pool_recycle=1800,
+    executemany_mode="values_plus_batch",
+)
+
+
+@worker_process_init.connect
+def _dispose_engine_on_fork(**_kwargs) -> None:
+    """Celery prefork: cada worker hijo hereda el pool del padre. Las conexiones
+    (sobre todo SSL, como las de Supabase) NO son fork-safe y se corrompen al
+    compartirse. Descartamos el pool heredado para que cada proceso abra las
+    suyas propias."""
+    _engine.dispose()
 
 
 @app.task(name="scrape_all_stores")
 def scrape_all_stores() -> dict:
+    """Singleton: impide que dos scrapes corran a la vez. Antes, con el beat
+    (muchos horarios) + concurrency=4, se solapaban y hacían DEADLOCK al escribir
+    los mismos productos. Si ya hay uno corriendo, se omite este disparo."""
+    import redis as _redis
+    _lock = _redis.from_url(settings.redis_url).lock(
+        "lock:scrape_all_stores", timeout=7200, blocking=False
+    )
+    if not _lock.acquire(blocking=False):
+        logger.warning("scrape_all_stores ya en ejecución; se omite este disparo")
+        return {"skipped": "already_running"}
+    try:
+        return _run_scrape_all_stores()
+    finally:
+        try:
+            _lock.release()
+        except Exception:
+            pass
+
+
+def _run_scrape_all_stores() -> dict:
     from app.scrapers.falabella_scraper import FalabellaScraper
     from app.scrapers.ripley_scraper import RipleyScraper
     from app.scrapers.plazavea_scraper import PlazaVeaScraper
     from app.scrapers.oechsle_scraper import OechsleScraper
     from app.scrapers.estilos_scraper import EstilosScraper
     from app.scrapers.sodimac_scraper import SodimacScraper
-    from app.repositories.product_repo import upsert_scraped_product, log_scraping
+    from app.repositories.product_repo import bulk_upsert_store, log_scraping
 
     scrapers = [FalabellaScraper(), RipleyScraper(), PlazaVeaScraper(), OechsleScraper(), EstilosScraper(), SodimacScraper()]
     results: dict[str, object] = {}
@@ -61,17 +99,8 @@ def scrape_all_stores() -> dict:
         try:
             from sqlalchemy import text as sql_text
             products = asyncio.run(scraper.get_category())
-            saved = 0
-            errors = 0
-            seen_ids: list[str] = []
             with Session(_engine) as session:
-                for product in products:
-                    try:
-                        sp = upsert_scraped_product(session, product)
-                        seen_ids.append(sp.id)
-                        saved += 1
-                    except Exception:
-                        errors += 1
+                saved, errors, seen_ids = bulk_upsert_store(session, store, products)
                 # Only after a successful scrape: mark unseen products as out-of-stock.
                 # This avoids the "temporary disappearance" window of the old pre-mark approach.
                 if seen_ids:

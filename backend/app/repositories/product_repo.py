@@ -4,6 +4,7 @@ import re
 import uuid
 from decimal import Decimal
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import PriceHistory, Product, ScrapingLog, StoreProduct
@@ -13,6 +14,97 @@ from app.scrapers.base import ScrapedProduct
 def _normalize_sku(name: str, brand: str) -> str:
     base = f"{brand.strip()}-{name.strip()}".lower()
     return re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:100]
+
+
+def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct]) -> tuple[int, int, list[str]]:
+    """Upsert masivo de una tienda: precarga los mapas existentes en memoria
+    (2 queries) y escribe todo en lote (bulk insert/update). Reemplaza el
+    patrón fila-por-fila, que sobre una BD remota (Supabase) hacía miles de
+    round-trips y tardaba horas. Devuelve (saved, errors, seen_ids)."""
+    # 1) Precargar en memoria (2 queries en vez de 2 por producto)
+    sku_to_pid: dict[str, str] = dict(
+        session.execute(select(Product.sku_normalized, Product.id)).all()
+    )
+    existing_sp: dict[str, dict] = {
+        pid: {"id": spid, "price": price, "stock": stock}
+        for pid, spid, price, stock in session.execute(
+            select(
+                StoreProduct.product_id, StoreProduct.id,
+                StoreProduct.current_price, StoreProduct.in_stock,
+            ).where(StoreProduct.store == store)
+        ).all()
+    }
+
+    new_products: list[dict] = []
+    new_sps: list[dict] = []
+    sp_updates: list[dict] = []
+    price_rows: list[dict] = []
+    seen_ids: list[str] = []
+    saved = 0
+    errors = 0
+
+    for s in scraped:
+        try:
+            sku = _normalize_sku(s.name, s.brand)
+            pid = sku_to_pid.get(sku)
+            if pid is None:
+                pid = str(uuid.uuid4())
+                sku_to_pid[sku] = pid
+                new_products.append({
+                    "id": pid, "name": s.name, "brand": s.brand,
+                    "category": s.category, "sku_normalized": sku,
+                    "image_url": s.image_url or None,
+                })
+
+            row = existing_sp.get(pid)
+            if row is None:
+                spid = str(uuid.uuid4())
+                new_sps.append({
+                    "id": spid, "product_id": pid, "store": s.store,
+                    "store_sku": s.store_sku or None, "url": s.url or None,
+                    "current_price": s.current_price, "original_price": s.original_price,
+                    "discount_percentage": s.discount_percentage,
+                    "in_stock": s.in_stock, "last_scraped_at": s.scraped_at,
+                })
+                existing_sp[pid] = {"id": spid, "price": s.current_price, "stock": s.in_stock}
+                price_changed = True
+            else:
+                spid = row["id"]
+                price_changed = (row["price"] != s.current_price or row["stock"] != s.in_stock)
+                sp_updates.append({
+                    "id": spid,
+                    "current_price": s.current_price, "original_price": s.original_price,
+                    "discount_percentage": s.discount_percentage,
+                    "in_stock": s.in_stock, "last_scraped_at": s.scraped_at,
+                    "url": s.url or None, "store_sku": s.store_sku or None,
+                })
+                row["price"] = s.current_price
+                row["stock"] = s.in_stock
+
+            seen_ids.append(spid)
+            if price_changed and s.current_price and s.current_price > Decimal("0"):
+                price_rows.append({
+                    "id": str(uuid.uuid4()), "store_product_id": spid,
+                    "price": s.current_price, "original_price": s.original_price,
+                    "in_stock": s.in_stock, "scraped_at": s.scraped_at,
+                })
+            saved += 1
+        except Exception:
+            errors += 1
+
+    # 2) Escrituras masivas (pocas queries). Orden: productos -> store_products
+    #    (flush para FK) -> updates -> price_history.
+    if new_products:
+        session.bulk_insert_mappings(Product, new_products)
+    if new_sps:
+        session.bulk_insert_mappings(StoreProduct, new_sps)
+    session.flush()
+    if sp_updates:
+        session.bulk_update_mappings(StoreProduct, sp_updates)
+    if price_rows:
+        session.bulk_insert_mappings(PriceHistory, price_rows)
+
+    return saved, errors, seen_ids
 
 
 def upsert_scraped_product(session: Session, scraped: ScrapedProduct) -> StoreProduct:

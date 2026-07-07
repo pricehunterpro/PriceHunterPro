@@ -47,12 +47,23 @@ def trigger_scrape() -> dict[str, str]:
     import redis as _redis
     from app.core.config import get_settings
     from app.tasks.celery_app import scrape_all_stores
-    task = scrape_all_stores.delay()
     try:
         r = _redis.from_url(get_settings().redis_url)
-        r.set("scrape_active_task", task.id, ex=1800)
     except Exception:
-        pass
+        r = None
+    # Si ya hay un scraping en curso (lock del singleton), no disparamos otro
+    # —evita el deadlock— y devolvemos el task real en ejecución para que el
+    # front siga mostrando el progreso.
+    if r is not None and r.exists("lock:scrape_all_stores"):
+        existing = (r.get("scrape_active_task") or b"").decode()
+        return {"status": "already_running", "task_id": existing,
+                "message": "Ya hay un scraping en curso"}
+    task = scrape_all_stores.delay()
+    if r is not None:
+        try:
+            r.set("scrape_active_task", task.id, ex=1800)
+        except Exception:
+            pass
     return {"status": "accepted", "task_id": task.id, "message": "Scraping started"}
 
 
