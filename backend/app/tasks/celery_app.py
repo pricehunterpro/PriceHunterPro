@@ -167,7 +167,7 @@ def _notify_new_alerts() -> None:
                 GROUP BY p2.sku_normalized
             ),
             candidates AS (
-                -- Un row por (SKU o producto único): la mejor oferta por SKU
+                -- Un row por SKU: la mejor oferta disponible, con filtros de calidad
                 SELECT DISTINCT ON (COALESCE(p.sku_normalized, sp.id))
                     sp.id, sp.store, p.name, sp.url,
                     COALESCE(p.image_url, '') AS image_url,
@@ -176,15 +176,19 @@ def _notify_new_alerts() -> None:
                 FROM store_products sp
                 JOIN products p ON p.id = sp.product_id
                 WHERE sp.in_stock = true
-                  AND sp.current_price >= 50
-                  AND sp.original_price >= 100
-                  AND (sp.original_price - sp.current_price) >= 100
-                  AND sp.original_price < sp.current_price * 12
+                  AND sp.current_price > 0
+                  AND sp.original_price > sp.current_price        -- precio original SIEMPRE mayor al actual
+                  AND sp.current_price >= 50                       -- mínimo S/50 precio actual
+                  AND sp.original_price >= 100                     -- mínimo S/100 precio original
+                  AND (sp.original_price - sp.current_price) >= 100  -- ahorro real >= S/100
+                  AND sp.original_price < sp.current_price * 10   -- anti-datos-basura
+                  AND (sp.original_price - sp.current_price) / sp.original_price >= 0.10  -- >=10% real
                 ORDER BY COALESCE(p.sku_normalized, sp.id), sp.current_price ASC
             )
             SELECT c.id, c.store, c.name, c.url,
                    c.image_url,
                    CAST(c.current_price AS float)                          AS current_price,
+                   CAST(c.original_price AS float)                         AS original_price,
                    CAST(COALESCE(
                        NULLIF(h.avg_hist_price, 0),
                        m.avg_market_price,
@@ -192,27 +196,27 @@ def _notify_new_alerts() -> None:
                    ) AS float)                                             AS avg_hist_price,
                    COALESCE(h.hist_count, 0)                              AS hist_count,
                    CAST(COALESCE(m.avg_market_price, 0) AS float)         AS avg_market_price,
-                   COALESCE(m.store_count, 0)                             AS store_count
+                   COALESCE(m.store_count, 0)                             AS store_count,
+                   CAST((c.original_price - c.current_price) / c.original_price * 100 AS float) AS real_discount_pct
             FROM candidates c
             LEFT JOIN hist h ON h.store_product_id = c.id
             LEFT JOIN market m ON m.sku_normalized = c.sku_normalized
             WHERE (
-                -- Alerta histórica: 15%+ bajo el promedio histórico
+                -- Alerta histórica: >=15% bajo el promedio histórico real
                 (h.hist_count >= 1
                  AND h.avg_hist_price > 0
                  AND c.current_price < h.avg_hist_price * 0.85)
                 OR
-                -- Alerta inmediata: descuento ≥50% con ahorro real ≥S/100
-                (c.discount_percentage >= 50
-                 AND c.original_price > 0)
+                -- Alerta inmediata: descuento REAL >= 40% (calculado, no campo almacenado)
+                ((c.original_price - c.current_price) / c.original_price >= 0.40)
                 OR
-                -- Alerta de mercado: ≥15% bajo el promedio cross-tienda (≥2 tiendas)
+                -- Alerta de mercado: >=15% bajo el promedio cross-tienda (>=2 tiendas)
                 (m.store_count >= 2
                  AND m.avg_market_price > 0
                  AND c.current_price < m.avg_market_price * 0.85)
             )
             ORDER BY (
-                c.discount_percentage *
+                ((c.original_price - c.current_price) / c.original_price * 100) *
                 LEAST(CAST(c.original_price - c.current_price AS float), 3000)
             ) DESC
             LIMIT 100
@@ -223,8 +227,22 @@ def _notify_new_alerts() -> None:
         key = f"tg_notified:{r_row.id}"
         if r.exists(key):
             continue
+
+        # Validación Python: doble chequeo de que hay descuento real
+        real_disc = getattr(r_row, "real_discount_pct", 0) or 0
+        if real_disc < 10:          # menos de 10% descuento real → ignorar
+            continue
+        if r_row.current_price <= 0:
+            continue
+
         ref_price = r_row.avg_hist_price if r_row.avg_hist_price else 0
         diff = round((1 - r_row.current_price / ref_price) * 100, 1) if ref_price else 0
+
+        # Si el precio de referencia no supera al precio actual, no es una alerta válida
+        if ref_price > 0 and ref_price <= r_row.current_price:
+            diff = round(real_disc, 1)      # usa el descuento original como referencia
+            ref_price = getattr(r_row, "original_price", r_row.current_price)
+
         new_alerts.append({
             "id":            r_row.id,
             "name":          r_row.name,
@@ -265,10 +283,12 @@ def publish_top_deals(limit: int = 5, min_discount: float = 40.0) -> dict:
             FROM store_products sp
             JOIN products p ON p.id = sp.product_id
             WHERE sp.in_stock = true
-              AND sp.discount_percentage >= :min_discount
+              AND sp.original_price > sp.current_price
+              AND (sp.original_price - sp.current_price) / sp.original_price >= :min_discount / 100.0
               AND sp.current_price > 0
               AND sp.original_price > 0
-            ORDER BY sp.discount_percentage DESC
+              AND (sp.original_price - sp.current_price) >= 50
+            ORDER BY (sp.original_price - sp.current_price) / sp.original_price DESC
             LIMIT :limit
         """), {"min_discount": min_discount, "limit": limit}).fetchall()
 
