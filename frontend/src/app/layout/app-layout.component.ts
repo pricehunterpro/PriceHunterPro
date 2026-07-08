@@ -1,7 +1,7 @@
 import { Component, HostListener, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { DealsStateService } from '../services/deals-state.service';
 import { AuthService } from '../services/auth.service';
 
@@ -18,9 +18,10 @@ export class AppLayoutComponent implements OnInit {
   private router = inject(Router);
   private route  = inject(ActivatedRoute);
 
-  collapsed    = false;
-  openGroups   = new Set<string>(['oportunidades']);
-  headerSearch = '';
+  collapsed      = false;
+  mobileMenuOpen = false;
+  openGroups     = new Set<string>(['oportunidades']);
+  headerSearch   = '';
 
   profileOpen  = false;
   adminKeyInput = '';
@@ -31,7 +32,14 @@ export class AppLayoutComponent implements OnInit {
     if (key === 'ph2026') sessionStorage.setItem('ph_admin', '1');
     this.s.init();
     if (this.auth.isAdmin()) this.s.isAdmin = true;
+    // Cierra el menú móvil al navegar a otra ruta
+    this.router.events.subscribe(ev => {
+      if (ev instanceof NavigationEnd) this.mobileMenuOpen = false;
+    });
   }
+
+  toggleMobileMenu(): void { this.mobileMenuOpen = !this.mobileMenuOpen; }
+  closeMobileMenu(): void { this.mobileMenuOpen = false; }
 
   toggle(group: string): void {
     this.openGroups.has(group) ? this.openGroups.delete(group) : this.openGroups.add(group);

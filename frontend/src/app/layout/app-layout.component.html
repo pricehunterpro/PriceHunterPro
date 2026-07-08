@@ -1,4 +1,7 @@
-<div class="layout" [class.sb-collapsed]="collapsed">
+<div class="layout" [class.sb-collapsed]="collapsed" [class.mobile-open]="mobileMenuOpen">
+
+  <!-- Backdrop del menú móvil -->
+  <div class="sb-backdrop" (click)="closeMobileMenu()"></div>
 
   <!-- ══════════════ SIDEBAR ══════════════ -->
   <aside class="sidebar">
@@ -187,6 +190,16 @@
 
     <!-- HEADER -->
     <header class="layout-header">
+
+      <!-- Hamburguesa (solo móvil) -->
+      <button class="sb-hamburger" (click)="toggleMobileMenu()" title="Menú" aria-label="Abrir menú">
+        <svg *ngIf="!mobileMenuOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+        <svg *ngIf="mobileMenuOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
 
       <!-- Search -->
       <div class="h-search-wrap">

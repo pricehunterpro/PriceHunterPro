@@ -496,14 +496,69 @@
 .h-scrape-ok { color: #00E58F; }
 
 /* ══════════════════════════════════════════════════════
+   MENÚ MÓVIL (hamburguesa + drawer)
+══════════════════════════════════════════════════════ */
+.sb-hamburger {
+  display: none;                     /* oculto en desktop */
+  width: 38px; height: 38px;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.sb-hamburger:hover { color: var(--accent); border-color: rgba(0,229,143,.35); }
+
+.sb-backdrop { display: none; }
+
+/* ══════════════════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  .sidebar { display: none; }
-  .h-user-info { display: none; }
+  .sb-hamburger { display: flex; }
+  .h-user-info  { display: none; }
+
+  /* Sidebar como drawer deslizante */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 82vw; min-width: 0; max-width: 320px;
+    height: 100vh;
+    transform: translateX(-102%);
+    transition: transform .28s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 48px rgba(0,0,0,.7);
+    z-index: 100;
+  }
+  /* En móvil ignoramos el estado colapsado (siempre ancho completo) */
+  .sb-collapsed .sidebar { width: 82vw; min-width: 0; }
+  .sb-collapsed .sb-wordmark   { display: flex; }
+  .sb-collapsed .sb-label,
+  .sb-collapsed .sb-arrow,
+  .sb-collapsed .sb-sync-label,
+  .sb-collapsed .sb-footer-info,
+  .sb-collapsed .sb-soon,
+  .sb-collapsed .sb-logout     { display: initial; }
+
+  .layout.mobile-open .sidebar { transform: translateX(0); }
+
+  /* Backdrop */
+  .sb-backdrop {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(2px);
+    z-index: 90;
+    opacity: 0; visibility: hidden;
+    transition: opacity .25s, visibility .25s;
+  }
+  .layout.mobile-open .sb-backdrop { opacity: 1; visibility: visible; }
 }
+
 @media (max-width: 600px) {
   .layout-content { padding: 16px; }
-  .h-search-wrap  { width: 180px; }
+  .h-search-wrap  { width: 100%; min-width: 0; }
   .h-sync         { display: none; }
 }
