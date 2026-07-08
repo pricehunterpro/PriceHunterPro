@@ -64,13 +64,11 @@
   background: radial-gradient(120% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, .55) 100%);
 }
 
-/* Logo — logo_sidebar.png tiene fondo negro: 'lighten' lo elimina y conserva
-   los colores reales del logo (verde y blanco intactos) */
+/* Logo — logo_transparent.png con fondo alpha real (colores exactos, sin caja negra) */
 .hero-logo {
   position: relative; z-index: 2;
   height: 190px; width: auto; max-width: 100%; margin: -1.5rem 0 -2rem -1rem;
   object-fit: contain; align-self: flex-start;
-  mix-blend-mode: lighten;
   filter: drop-shadow(0 0 26px rgba(0, 229, 143, .3));
   animation: fadeInUp .8s .05s ease both;
 }
@@ -264,7 +262,6 @@
 .auth-logo {
   display: block; height: auto; width: 78%; max-width: 280px; margin: -0.5rem auto 1rem;
   object-fit: contain;
-  mix-blend-mode: lighten;
   filter: drop-shadow(0 0 18px rgba(0, 229, 143, .25));
 }
 .auth-title { text-align: center; font-size: 1.5rem; font-weight: 700; color: var(--text); margin: 0 0 1.8rem; letter-spacing: -.01em; }
