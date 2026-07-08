@@ -1,44 +1,208 @@
-<div class="login-wrap">
-  <div class="login-card">
-    <div class="logo">
-      <span class="logo-icon">🏷️</span>
-      <span class="logo-text">PriceHunter<span class="accent">Pro</span></span>
+<div class="login-page">
+
+  <!-- ════════════ COLUMNA IZQUIERDA · HERO ════════════ -->
+  <section class="hero">
+    <!-- Capas de fondo -->
+    <div class="hero-bg">
+      <div class="bg-grid"></div>
+      <div class="bg-glow bg-glow-1"></div>
+      <div class="bg-glow bg-glow-2"></div>
+      <div class="bg-vignette"></div>
     </div>
-    <p class="subtitle">Panel de administración</p>
 
-    <form (ngSubmit)="submit()" #f="ngForm">
-      <div class="field">
-        <label>Usuario</label>
-        <input
-          type="text"
-          [(ngModel)]="username"
-          name="username"
-          placeholder="admin"
-          autocomplete="username"
-          [disabled]="loading"
-          required
-        />
+    <!-- Logo -->
+    <img class="hero-logo" src="assets/logos/logo_web_portal.png" alt="PriceHunter Pro" />
+
+    <!-- Contenido central -->
+    <div class="hero-main">
+      <div class="hero-copy">
+        <h1 class="hero-title">
+          CAZAMOS LAS<br />
+          MEJORES <span class="accent">OFERTAS</span>
+        </h1>
+        <div class="hero-accent-line"></div>
+        <p class="hero-lines">
+          <span>Analizamos.</span>
+          <span>Verificamos.</span>
+          <span>Publicamos.</span>
+        </p>
+        <p class="hero-tag">Para que tú <span class="accent">solo ganes.</span></p>
       </div>
 
-      <div class="field">
-        <label>Contraseña</label>
-        <input
-          type="password"
-          [(ngModel)]="password"
-          name="password"
-          placeholder="••••••••••"
-          autocomplete="current-password"
-          [disabled]="loading"
-          required
-        />
+      <!-- Escena holográfica con tarjetas flotando -->
+      <div class="hero-scene">
+        <div class="deal-card deal-card--left">
+          <span class="deal-badge">-55%</span>
+          <div class="deal-thumb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+              <rect x="6" y="7" width="12" height="10" rx="3"/><rect x="9" y="2.5" width="6" height="4.5" rx="1.5"/>
+              <rect x="9" y="17" width="6" height="4.5" rx="1.5"/><circle cx="12" cy="12" r="2.2"/>
+            </svg>
+          </div>
+          <p class="deal-name">Apple Watch Series 9</p>
+          <p class="deal-price">S/ 1,399 <s>S/ 2,999</s></p>
+          <div class="deal-store"><span class="deal-store-dot oe">oe</span> Oechsle</div>
+        </div>
+
+        <div class="deal-card deal-card--center">
+          <span class="deal-badge">-63%</span>
+          <div class="deal-thumb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+              <path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="3" y="13" width="4" height="7" rx="2"/>
+              <rect x="17" y="13" width="4" height="7" rx="2"/>
+            </svg>
+          </div>
+          <p class="deal-name">Sony WH-1000XM5</p>
+          <p class="deal-price">S/ 1,099 <s>S/ 2,999</s></p>
+          <div class="deal-store"><span class="deal-store-dot fa">f</span> Falabella</div>
+        </div>
+
+        <div class="deal-card deal-card--right">
+          <span class="deal-badge">-42%</span>
+          <div class="deal-thumb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+              <rect x="3" y="7" width="18" height="10" rx="3"/><line x1="7.5" y1="10.5" x2="7.5" y2="13.5"/>
+              <line x1="6" y1="12" x2="9" y2="12"/><circle cx="16.5" cy="11" r="1"/><circle cx="18" cy="13.5" r="1"/>
+            </svg>
+          </div>
+          <p class="deal-name">PlayStation 5 Slim</p>
+          <p class="deal-price">S/ 1,749 <s>S/ 2,999</s></p>
+          <div class="deal-store"><span class="deal-store-dot ri">R</span> Ripley</div>
+        </div>
+
+        <!-- Plataforma holográfica -->
+        <div class="platform">
+          <div class="platform-core"></div>
+          <div class="platform-ring platform-ring-1"></div>
+          <div class="platform-ring platform-ring-2"></div>
+          <div class="platform-beam"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tarjetas de features -->
+    <div class="feature-row">
+      <div class="feature-card">
+        <span class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2"/>
+          </svg>
+        </span>
+        <p class="feature-title">MILES DE PRODUCTOS<br /><span class="accent">ANALIZADOS</span></p>
+        <p class="feature-desc">Cada día más oportunidades</p>
       </div>
 
-      <div class="error" *ngIf="error">{{ error }}</div>
+      <div class="feature-card">
+        <span class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a4 4 0 0 0-4 4 3 3 0 0 0-1 5.8V15a3 3 0 0 0 5 2 3 3 0 0 0 5-2v-2.2A3 3 0 0 0 16 7a4 4 0 0 0-4-4Z"/>
+          </svg>
+        </span>
+        <p class="feature-title">IA DETECTANDO<br /><span class="accent">GANGAS</span></p>
+        <p class="feature-desc">Inteligencia artificial trabajando para ti</p>
+      </div>
 
-      <button type="submit" class="btn-login" [disabled]="loading || !username || !password">
-        <span *ngIf="!loading">Ingresar</span>
-        <span *ngIf="loading" class="spinner"></span>
-      </button>
-    </form>
-  </div>
+      <div class="feature-card">
+        <span class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/>
+          </svg>
+        </span>
+        <p class="feature-title">PUBLICACIONES<br /><span class="accent">AUTOMÁTICAS</span></p>
+        <p class="feature-desc">Envío instantáneo a tus canales</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/>
+          </svg>
+        </span>
+        <p class="feature-title">SOLO OFERTAS<br /><span class="accent">VERIFICADAS</span></p>
+        <p class="feature-desc">Reales, confiables y seguras</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════ COLUMNA DERECHA · LOGIN ════════════ -->
+  <section class="auth">
+    <div class="auth-card">
+      <img class="auth-logo" src="assets/logos/logo_web_portal.png" alt="PriceHunter Pro" />
+      <h2 class="auth-title">Iniciar sesión</h2>
+
+      <form (ngSubmit)="submit()" #f="ngForm" class="auth-form">
+        <div class="field">
+          <label>Usuario</label>
+          <div class="input-wrap">
+            <span class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+              </svg>
+            </span>
+            <input
+              type="text"
+              [(ngModel)]="username"
+              name="username"
+              placeholder="Ingresa tu usuario"
+              autocomplete="username"
+              [disabled]="loading"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Contraseña</label>
+          <div class="input-wrap">
+            <span class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+              </svg>
+            </span>
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              [(ngModel)]="password"
+              name="password"
+              placeholder="Ingresa tu contraseña"
+              autocomplete="current-password"
+              [disabled]="loading"
+              required
+            />
+            <button type="button" class="input-eye" (click)="togglePassword()" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+              <svg *ngIf="!showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg *ngIf="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.5-7 10-7c2 0 3.8.6 5.3 1.5"/><path d="M22 12s-3.5 7-10 7c-2 0-3.8-.6-5.3-1.5"/><line x1="3" y1="3" x2="21" y2="21"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="auth-row">
+          <label class="remember">
+            <input type="checkbox" [(ngModel)]="remember" name="remember" />
+            <span class="checkbox"></span>
+            <span>Recordarme</span>
+          </label>
+          <button type="button" class="link-forgot">¿Olvidaste tu contraseña?</button>
+        </div>
+
+        <div class="error" *ngIf="error">{{ error }}</div>
+
+        <button type="submit" class="btn-login" [disabled]="loading || !username || !password">
+          <span *ngIf="!loading">INGRESAR</span>
+          <span *ngIf="loading" class="spinner"></span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <div class="auth-footer-line"></div>
+        <p class="foot-brand">PriceHunter Pro</p>
+        <p class="foot-meta">Versión 2.0</p>
+        <p class="foot-meta">© 2026</p>
+      </div>
+    </div>
+  </section>
+
 </div>

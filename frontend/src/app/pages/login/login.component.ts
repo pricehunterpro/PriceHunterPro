@@ -20,6 +20,14 @@ export class LoginComponent {
   loading  = false;
   error    = '';
 
+  // UI-only (no altera la lógica de autenticación)
+  remember     = true;
+  showPassword = false;
+
+  togglePassword(): void {
+    this.showPassword = !this.showPassword;
+  }
+
   submit(): void {
     if (!this.username || !this.password) return;
     this.loading = true;
