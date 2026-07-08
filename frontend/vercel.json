@@ -3,6 +3,7 @@
   "outputDirectory": "dist/pricehunter-frontend",
   "framework": null,
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://pricehunterpro-production.up.railway.app/api/:path*" },
     { "source": "/((?!api/)(?!index\\.html$).*)", "destination": "/index.html" }
   ]
 }
