@@ -1,7 +1,7 @@
 :host {
-  --green: #00E58F;
-  --green-soft: rgba(0, 229, 143, .16);
-  --green-glow: rgba(0, 229, 143, .45);
+  --green: #64F014;
+  --green-soft: rgba(100, 240, 20, .16);
+  --green-glow: rgba(100, 240, 20, .45);
   --ink: #05070a;
   --ink-2: #0a0e12;
   --panel: rgba(18, 24, 30, .72);
@@ -41,8 +41,8 @@
 .bg-grid {
   position: absolute; inset: -2px;
   background-image:
-    linear-gradient(rgba(0, 229, 143, .05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 229, 143, .05) 1px, transparent 1px);
+    linear-gradient(rgba(100, 240, 20, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100, 240, 20, .05) 1px, transparent 1px);
   background-size: 46px 46px;
   mask-image: radial-gradient(80% 70% at 45% 40%, #000 0%, transparent 85%);
   -webkit-mask-image: radial-gradient(80% 70% at 45% 40%, #000 0%, transparent 85%);
@@ -51,12 +51,12 @@
 .bg-glow { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .55; }
 .bg-glow-1 {
   width: 520px; height: 520px; left: 22%; top: 28%;
-  background: radial-gradient(circle, rgba(0, 229, 143, .38), transparent 70%);
+  background: radial-gradient(circle, rgba(100, 240, 20, .38), transparent 70%);
   animation: floatGlow 9s ease-in-out infinite;
 }
 .bg-glow-2 {
   width: 360px; height: 360px; right: 8%; top: 10%;
-  background: radial-gradient(circle, rgba(0, 229, 143, .16), transparent 70%);
+  background: radial-gradient(circle, rgba(100, 240, 20, .16), transparent 70%);
   animation: floatGlow 11s ease-in-out infinite reverse;
 }
 .bg-vignette {
@@ -69,7 +69,7 @@
   position: relative; z-index: 2;
   height: 190px; width: auto; max-width: 100%; margin: -1.5rem 0 -2rem -1rem;
   object-fit: contain; align-self: flex-start;
-  filter: drop-shadow(0 0 26px rgba(0, 229, 143, .3));
+  filter: drop-shadow(0 0 26px rgba(100, 240, 20, .3));
   animation: fadeInUp .8s .05s ease both;
 }
 
@@ -132,8 +132,8 @@
   padding: 1rem;
   border-radius: 18px;
   background: linear-gradient(160deg, rgba(20, 28, 32, .92), rgba(9, 14, 17, .92));
-  border: 1px solid rgba(0, 229, 143, .28);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 0 24px rgba(0, 229, 143, .1), inset 0 1px 0 rgba(255, 255, 255, .05);
+  border: 1px solid rgba(100, 240, 20, .28);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 0 24px rgba(100, 240, 20, .1), inset 0 1px 0 rgba(255, 255, 255, .05);
   backdrop-filter: blur(6px);
   z-index: 2;
 }
@@ -143,8 +143,8 @@
 }
 .deal-card--center {
   left: 50%; top: 20%; margin-left: -95px; width: 190px; z-index: 3;
-  border-color: rgba(0, 229, 143, .55);
-  box-shadow: 0 26px 60px rgba(0, 0, 0, .6), 0 0 42px rgba(0, 229, 143, .28), inset 0 1px 0 rgba(255, 255, 255, .06);
+  border-color: rgba(100, 240, 20, .55);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, .6), 0 0 42px rgba(100, 240, 20, .28), inset 0 1px 0 rgba(255, 255, 255, .06);
   animation: floatCard 6s ease-in-out infinite;
 }
 .deal-card--right {
@@ -163,7 +163,7 @@
 .deal-thumb {
   height: 76px; border-radius: 12px; margin-bottom: .7rem;
   display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 50% 40%, rgba(0, 229, 143, .14), rgba(0, 0, 0, .2));
+  background: radial-gradient(circle at 50% 40%, rgba(100, 240, 20, .14), rgba(0, 0, 0, .2));
   border: 1px solid rgba(255, 255, 255, .05);
   color: var(--green);
 }
@@ -191,19 +191,19 @@
 .platform-core {
   position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 200px; height: 46px; border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(0, 229, 143, .35), transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(100, 240, 20, .35), transparent 70%);
   filter: blur(4px);
 }
 .platform-ring {
   position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
-  border: 1.5px solid rgba(0, 229, 143, .4); border-radius: 50%;
+  border: 1.5px solid rgba(100, 240, 20, .4); border-radius: 50%;
 }
 .platform-ring-1 { width: 240px; height: 54px; animation: pulseRing 4s ease-in-out infinite; }
 .platform-ring-2 { width: 320px; height: 74px; opacity: .5; animation: pulseRing 4s ease-in-out infinite .8s; }
 .platform-beam {
   position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
   width: 90px; height: 200px;
-  background: linear-gradient(to top, rgba(0, 229, 143, .3), transparent);
+  background: linear-gradient(to top, rgba(100, 240, 20, .3), transparent);
   filter: blur(14px); border-radius: 50%;
 }
 
@@ -224,8 +224,8 @@
 }
 .feature-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(0, 229, 143, .35);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, .4), 0 0 20px rgba(0, 229, 143, .12);
+  border-color: rgba(100, 240, 20, .35);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .4), 0 0 20px rgba(100, 240, 20, .12);
 }
 .feature-icon {
   display: inline-grid; place-items: center;
@@ -242,7 +242,7 @@
   display: flex; align-items: center; justify-content: center;
   padding: 2rem 2.2rem;
   background:
-    linear-gradient(180deg, rgba(0, 229, 143, .04), transparent 30%),
+    linear-gradient(180deg, rgba(100, 240, 20, .04), transparent 30%),
     #07090c;
   border-left: 1px solid var(--line);
   animation: fadeIn .8s .1s ease both;
@@ -262,7 +262,7 @@
 .auth-logo {
   display: block; height: auto; width: 78%; max-width: 280px; margin: -0.5rem auto 1rem;
   object-fit: contain;
-  filter: drop-shadow(0 0 18px rgba(0, 229, 143, .25));
+  filter: drop-shadow(0 0 18px rgba(100, 240, 20, .25));
 }
 .auth-title { text-align: center; font-size: 1.5rem; font-weight: 700; color: var(--text); margin: 0 0 1.8rem; letter-spacing: -.01em; }
 
@@ -355,7 +355,7 @@
 
 .btn-login {
   width: 100%;
-  background: linear-gradient(180deg, #16f39c, var(--green));
+  background: linear-gradient(180deg, #8BFF3A, var(--green));
   color: #04120c;
   border: none;
   border-radius: 12px;
@@ -367,11 +367,11 @@
   transition: transform .12s, box-shadow .25s, filter .2s;
   display: flex; align-items: center; justify-content: center;
   min-height: 48px;
-  box-shadow: 0 8px 24px rgba(0, 229, 143, .28);
+  box-shadow: 0 8px 24px rgba(100, 240, 20, .28);
 }
 .btn-login:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 12px 34px rgba(0, 229, 143, .45);
+  box-shadow: 0 12px 34px rgba(100, 240, 20, .45);
   filter: brightness(1.05);
 }
 .btn-login:active:not(:disabled) { transform: translateY(0); }
