@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from copy import deepcopy
 from typing import Any
 
@@ -13,6 +14,12 @@ settings = get_settings()
 
 _sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 _engine = create_engine(_sync_url, pool_pre_ping=True)
+
+# Caché en memoria de los items. La data solo cambia cuando corre un scrape
+# (pocas veces al día), así que un TTL corto evita re-consultar ~11k filas en
+# cada request (get_deals llama _load_items dos veces por llamada).
+_CACHE_TTL_SECONDS = 180
+_items_cache: dict[str, Any] = {"ts": 0.0, "items": None}
 
 def _hc(d: dict) -> dict:
     d.setdefault("avgMarketPrice", 0.0)
@@ -33,6 +40,10 @@ _HARDCODED: list[dict[str, Any]] = [
 
 class DealService:
     def _load_items(self) -> list[dict[str, Any]]:
+        now = time.time()
+        cached = _items_cache["items"]
+        if cached is not None and (now - _items_cache["ts"]) < _CACHE_TTL_SECONDS:
+            return cached
         try:
             with Session(_engine) as session:
                 rows = session.execute(text("""
@@ -67,7 +78,7 @@ class DealService:
                     WHERE sp.current_price > 0
                       AND sp.in_stock = true
                     ORDER BY sp.discount_percentage DESC NULLS LAST
-                    LIMIT 5000
+                    LIMIT 20000
                 """)).fetchall()
 
                 if not rows:
@@ -110,6 +121,8 @@ class DealService:
                         "belowMarket": below_market,
                         "mktDiffPct": mkt_diff_pct,
                     })
+                _items_cache["items"] = items
+                _items_cache["ts"] = now
                 return items
         except Exception:
             return deepcopy(_HARDCODED)

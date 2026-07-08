@@ -54,6 +54,14 @@ _CATEGORY_SLUGS = [
     "/category/CATG34932/Lentes-de-sol",
     "/category/CATG15650/Relojes-mujer",
     "/category/CATG15657/Relojes-hombre",
+    # Categorías L0 amplias (verificadas por facets) — cubren accesorios de moda
+    # (gorras/chullos/mochilas), moda general, deportes, belleza, hogar y viajes.
+    "/category/CATG46360/Accesorios-Moda",
+    "/category/CATG11950/Moda",
+    "/category/cat40571/Deportes-y-aire-libre",
+    "/category/cat40498/Belleza-higiene-y-salud",
+    "/category/CATG11947/Decohogar",
+    "/category/CATG34914/Maleteria-y-viajes",
 ]
 
 
@@ -100,19 +108,23 @@ def _products_from_results(results: list, category: str) -> list[ScrapedProduct]
         if not name:
             continue
 
-        # Prices
-        current_price = Decimal("0")
+        # Prices — se recogen por tipo y se elige el precio actual por prioridad.
+        # internetPrice (precio online) > eventPrice (oferta) > cmrPrice (tarjeta CMR).
+        prices_by_type: dict[str, Decimal] = {}
         original_price = Decimal("0")
         for p in item.get("prices") or []:
             val = _parse_price(p.get("price", []))
             ptype = p.get("type", "")
-            crossed = p.get("crossed", False)
-            if ptype == "internetPrice" and current_price == Decimal("0"):
-                current_price = val
-            elif ptype == "cmrPrice" and current_price == Decimal("0"):
-                current_price = val
-            if crossed and original_price == Decimal("0"):
+            if ptype and val > Decimal("0") and ptype not in prices_by_type:
+                prices_by_type[ptype] = val
+            if p.get("crossed", False) and original_price == Decimal("0"):
                 original_price = val
+
+        current_price = Decimal("0")
+        for pref in ("internetPrice", "eventPrice", "cmrPrice"):
+            if pref in prices_by_type:
+                current_price = prices_by_type[pref]
+                break
 
         if current_price == Decimal("0"):
             continue
