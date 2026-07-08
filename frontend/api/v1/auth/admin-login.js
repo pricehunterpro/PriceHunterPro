@@ -16,6 +16,9 @@ function getUsers() {
   if (process.env.TEST_USER && process.env.TEST_PASSWORD) {
     users.push({ username: process.env.TEST_USER, password: process.env.TEST_PASSWORD, role: 'viewer' });
   }
+  if (process.env.TEST2_USER && process.env.TEST2_PASSWORD) {
+    users.push({ username: process.env.TEST2_USER, password: process.env.TEST2_PASSWORD, role: 'viewer' });
+  }
 
   return users;
 }

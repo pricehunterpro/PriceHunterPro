@@ -106,6 +106,10 @@ def admin_login(body: dict[str, Any] = Body(...)) -> TokenResponse:
         token = create_access_token(subject=username, role="viewer")
         return TokenResponse(access_token=token)
 
+    if settings.test2_password and username == settings.test2_user and password == settings.test2_password:
+        token = create_access_token(subject=username, role="viewer")
+        return TokenResponse(access_token=token)
+
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 
