@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException
@@ -131,10 +131,10 @@ def _seed_items() -> list[dict]:
         """)).fetchall()
 
     estados_init = [
-        "Pendiente", "Pendiente", "Generado",  "Generado",
-        "Aprobado",  "Aprobado",  "Programado", "Publicado",
-        "Pendiente", "Error",     "Generado",   "Aprobado",
-        "Pendiente", "Generado",  "Pendiente",  "Programado",
+        "Pendiente", "Generado",  "Programado", "Publicado",
+        "Aprobado",  "Programado", "Publicado",  "Programado",
+        "Pendiente", "Error",     "Programado",  "Publicado",
+        "Generado",  "Programado", "Publicado",  "Programado",
     ]
     scores = [95, 88, 92, 80, 87, 76, 83, 91, 70, 55, 78, 85, 93, 68, 82, 79]
     canales_sets = [
@@ -169,6 +169,17 @@ def _seed_items() -> list[dict]:
             )
             if has_content else ""
         )
+        # Fechas para el Calendario Editorial: Programado → futuro, Publicado → pasado
+        now = datetime.now(timezone.utc)
+        fecha_prog = None
+        fecha_pub = None
+        created = now
+        if estado == "Programado":
+            fecha_prog = (now + timedelta(days=(i % 18), hours=9 + (i % 8))).isoformat()
+        elif estado == "Publicado":
+            fecha_pub = (now - timedelta(days=1 + (i % 20), hours=(i % 12))).isoformat()
+        else:
+            created = now - timedelta(days=(i % 6), hours=(i % 10))
         items.append({
             "id":                   str(uuid.uuid4()),
             "opportunityId":        str(row.id),
@@ -185,10 +196,10 @@ def _seed_items() -> list[dict]:
             "hashtags":             _hashtags(row.store, row.category or "General", disc),
             "scoreIA":              scores[i % len(scores)],
             "estado":               estado,
-            "fechaProgramada":      None,
-            "fechaPublicacion":     None,
-            "generadoAt":           None if not has_content else datetime.now(timezone.utc).isoformat(),
-            "createdAt":            datetime.now(timezone.utc).isoformat(),
+            "fechaProgramada":      fecha_prog,
+            "fechaPublicacion":     fecha_pub,
+            "generadoAt":           None if not has_content else now.isoformat(),
+            "createdAt":            created.isoformat(),
         })
 
     _save_items(items)
@@ -318,3 +329,56 @@ def reload_items() -> dict[str, Any]:
     _r().delete(_REDIS_KEY)
     items = _seed_items()
     return {"status": "ok", "count": len(items)}
+
+
+# ── Calendario Editorial ────────────────────────────────────────────────────
+
+# Estados del calendario (4). Los estados internos Generado/Aprobado se agrupan
+# como "Pendiente" (contenido listo pero aún sin programar/publicar).
+CAL_ESTADOS = ["Publicado", "Programado", "Pendiente", "Error"]
+
+
+def _cal_estado(estado: str) -> str:
+    if estado in ("Publicado", "Programado", "Error"):
+        return estado
+    return "Pendiente"  # Pendiente, Generado, Aprobado
+
+
+def _cal_fecha(it: dict) -> str | None:
+    """Fecha en la que el item cae en el calendario según su estado."""
+    if it.get("estado") == "Publicado" and it.get("fechaPublicacion"):
+        return it["fechaPublicacion"]
+    if it.get("estado") == "Programado" and it.get("fechaProgramada"):
+        return it["fechaProgramada"]
+    return it.get("fechaProgramada") or it.get("fechaPublicacion") or it.get("createdAt")
+
+
+@router.get("/calendario")
+def calendario() -> dict[str, Any]:
+    """Eventos para el Calendario Editorial, integrados con el Publicador IA.
+    Reutiliza los mismos items (Redis): cada uno se ubica en una fecha según su
+    estado y se mapea a uno de los 4 estados del calendario."""
+    items = _all_items()
+    if not items:
+        items = _seed_items()
+
+    eventos = []
+    kpis = {e: 0 for e in CAL_ESTADOS}
+    for it in items:
+        cal_estado = _cal_estado(it.get("estado", "Pendiente"))
+        kpis[cal_estado] += 1
+        eventos.append({
+            "id":          it["id"],
+            "titulo":      it.get("titulo", ""),
+            "store":       it.get("store", ""),
+            "category":    it.get("category", ""),
+            "discountPct": it.get("discountPct", 0),
+            "currentPrice": it.get("currentPrice", 0),
+            "imageUrl":    it.get("imageUrl", ""),
+            "canales":     it.get("canalesSeleccionados", []),
+            "estado":      cal_estado,
+            "estadoReal":  it.get("estado", "Pendiente"),
+            "fecha":       _cal_fecha(it),
+        })
+
+    return {"eventos": eventos, "kpis": kpis, "estados": CAL_ESTADOS, "total": len(eventos)}

@@ -11,7 +11,7 @@ from app.scrapers.stealth import random_user_agent
 _BASE = "https://www.oechsle.pe"
 _API = f"{_BASE}/api/catalog_system/pub/products/search"
 _PAGE_SIZE = 50
-_MAX_PAGES = 4
+_MAX_PAGES = 10  # hasta 500 productos por categoría (Lavado/TV/etc. tienen 500)
 _TOP_DEALS_PAGES = 6  # 300 productos con mayor descuento sin filtro de categoría
 
 # (fq_path, fallback_name) — paths con trailing slash obligatorio en Oechsle

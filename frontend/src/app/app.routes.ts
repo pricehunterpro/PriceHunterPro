@@ -9,6 +9,7 @@ import { CentroMonitoreoComponent } from './pages/centro-monitoreo/centro-monito
 import { TiktokFactoryComponent } from './pages/tiktok-factory/tiktok-factory.component';
 import { SupervisionComponent } from './pages/supervision/supervision.component';
 import { PublicadorComponent } from './pages/publicador/publicador.component';
+import { CalendarioComponent } from './pages/calendario/calendario.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
@@ -32,6 +33,7 @@ export const routes: Routes = [
       { path: 'marketing/tiktok-factory',    component: TiktokFactoryComponent,   canActivate: [adminGuard] },
       { path: 'marketing/supervision',       component: SupervisionComponent,     canActivate: [adminGuard] },
       { path: 'marketing/publicador-ia',     component: PublicadorComponent,      canActivate: [adminGuard] },
+      { path: 'calendario',                  component: CalendarioComponent,      canActivate: [adminGuard] },
 
       { path: '**', component: ComingSoonComponent },
     ],

@@ -1,0 +1,132 @@
+<div class="cal-page">
+
+  <!-- Header -->
+  <div class="cal-header">
+    <div>
+      <h2>Calendario Editorial</h2>
+      <p>Programación de publicaciones integrada con el <a routerLink="/marketing/publicador-ia" class="link">Publicador IA</a>.</p>
+    </div>
+    <div class="cal-header-actions">
+      <a routerLink="/marketing/publicador-ia" class="ghost-btn">Ir al Publicador</a>
+      <button class="ghost-btn reload" (click)="load()">↻ Actualizar</button>
+    </div>
+  </div>
+
+  <!-- Leyenda de estados (clic para filtrar) -->
+  <div class="cal-legend">
+    <button class="legend-item"
+            *ngFor="let est of estados"
+            [class.active]="filterEstado === est"
+            [class]="'legend-item ' + estadoClass(est) + (filterEstado === est ? ' active' : '')"
+            (click)="toggleFilter(est)">
+      <span class="legend-dot"></span>
+      <span class="legend-label">{{ est }}</span>
+      <span class="legend-count">{{ kpis[est] || 0 }}</span>
+    </button>
+    <span class="legend-hint" *ngIf="filterEstado">· Filtrando por <b>{{ filterEstado }}</b> — clic para quitar</span>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="cal-toolbar">
+    <div class="cal-nav">
+      <button class="nav-btn" (click)="prev()" title="Anterior">‹</button>
+      <button class="nav-btn today" (click)="today()">Hoy</button>
+      <button class="nav-btn" (click)="next()" title="Siguiente">›</button>
+      <span class="cal-period">{{ periodLabel }}</span>
+    </div>
+    <div class="cal-modes">
+      <button [class.active]="mode === 'mes'"    (click)="setMode('mes')">Mes</button>
+      <button [class.active]="mode === 'semana'" (click)="setMode('semana')">Semana</button>
+      <button [class.active]="mode === 'agenda'" (click)="setMode('agenda')">Agenda</button>
+    </div>
+  </div>
+
+  <div class="cal-loading" *ngIf="loading">Cargando calendario…</div>
+
+  <!-- ══════════════ MODO MES ══════════════ -->
+  <div class="cal-month" *ngIf="!loading && mode === 'mes'">
+    <div class="cal-weekhead">
+      <div *ngFor="let w of weekdayLabels">{{ w }}</div>
+    </div>
+    <div class="cal-grid">
+      <div class="cal-cell" *ngFor="let cell of monthCells"
+           [class.out]="!cell.inMonth" [class.today]="cell.isToday">
+        <span class="cell-day">{{ cell.date.getDate() }}</span>
+        <div class="cell-events">
+          <button class="chip" *ngFor="let ev of cell.events.slice(0, 3)"
+                  [class]="'chip ' + estadoClass(ev.estado)" (click)="select(ev)" [title]="ev.titulo">
+            <span class="chip-time" *ngIf="timeLabel(ev.fecha)">{{ timeLabel(ev.fecha) }}</span>
+            <span class="chip-text">{{ ev.titulo }}</span>
+          </button>
+          <span class="chip-more" *ngIf="cell.events.length > 3">+{{ cell.events.length - 3 }} más</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODO SEMANA ══════════════ -->
+  <div class="cal-week" *ngIf="!loading && mode === 'semana'">
+    <div class="week-col" *ngFor="let cell of weekCells" [class.today]="cell.isToday">
+      <div class="week-colhead">
+        <span class="wc-day">{{ weekdayLabel(cell.date) }}</span>
+        <span class="wc-num" [class.today]="cell.isToday">{{ cell.date.getDate() }}</span>
+      </div>
+      <div class="week-events">
+        <button class="wevent" *ngFor="let ev of cell.events"
+                [class]="'wevent ' + estadoClass(ev.estado)" (click)="select(ev)">
+          <span class="wevent-time" *ngIf="timeLabel(ev.fecha)">{{ timeLabel(ev.fecha) }}</span>
+          <span class="wevent-title">{{ ev.titulo }}</span>
+          <span class="wevent-store">{{ ev.store }} · -{{ ev.discountPct }}%</span>
+        </button>
+        <div class="week-empty" *ngIf="cell.events.length === 0">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODO AGENDA ══════════════ -->
+  <div class="cal-agenda" *ngIf="!loading && mode === 'agenda'">
+    <div class="agenda-empty" *ngIf="agendaGroups.length === 0">No hay publicaciones para mostrar.</div>
+    <div class="agenda-group" *ngFor="let g of agendaGroups">
+      <div class="agenda-date">{{ agendaDayLabel(g.date) }}</div>
+      <div class="agenda-rows">
+        <button class="agenda-row" *ngFor="let ev of g.events" (click)="select(ev)">
+          <span class="ag-dot" [class]="'ag-dot ' + estadoClass(ev.estado)"></span>
+          <span class="ag-time">{{ timeLabel(ev.fecha) || '--:--' }}</span>
+          <span class="ag-title">{{ ev.titulo }}</span>
+          <span class="ag-meta">{{ ev.store }} · -{{ ev.discountPct }}%</span>
+          <span class="badge" [class]="'badge ' + estadoClass(ev.estado)">{{ ev.estado }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ DETALLE ══════════════ -->
+  <div class="cal-detail-backdrop" *ngIf="selected" (click)="closeDetail()">
+    <div class="cal-detail" (click)="$event.stopPropagation()">
+      <button class="detail-close" (click)="closeDetail()">✕</button>
+      <div class="detail-media">
+        <img *ngIf="selected.imageUrl" [src]="selected.imageUrl" [alt]="selected.titulo" />
+        <div class="detail-noimg" *ngIf="!selected.imageUrl">Sin imagen</div>
+        <span class="badge detail-badge" [class]="'badge ' + estadoClass(selected.estado)">{{ selected.estado }}</span>
+      </div>
+      <div class="detail-body">
+        <h3>{{ selected.titulo }}</h3>
+        <div class="detail-price">
+          <span class="dp-now">S/ {{ selected.currentPrice }}</span>
+          <span class="dp-disc">-{{ selected.discountPct }}%</span>
+        </div>
+        <div class="detail-meta">
+          <div><span>Tienda</span><b>{{ selected.store }}</b></div>
+          <div><span>Categoría</span><b>{{ selected.category || 'General' }}</b></div>
+          <div><span>Estado interno</span><b>{{ selected.estadoReal }}</b></div>
+          <div *ngIf="selected.fecha"><span>Fecha</span><b>{{ selected.fecha | date:'dd/MM/yyyy HH:mm' }}</b></div>
+        </div>
+        <div class="detail-canales" *ngIf="selected.canales?.length">
+          <span class="dc-tag" *ngFor="let c of selected.canales">{{ c }}</span>
+        </div>
+        <a routerLink="/marketing/publicador-ia" class="detail-cta">Gestionar en Publicador IA →</a>
+      </div>
+    </div>
+  </div>
+
+</div>
