@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     telegram_channel_prd: str = ""
     admin_user: str = "admin"
     admin_password: str = ""
+    test_user: str = ""
+    test_password: str = ""
 
     @property
     def telegram_channel(self) -> str:

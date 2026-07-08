@@ -88,20 +88,25 @@ async def refresh_token() -> TokenResponse:
 
 @router.post("/admin-login", response_model=TokenResponse)
 def admin_login(body: dict[str, Any] = Body(...)) -> TokenResponse:
-    """Login del panel interno — valida contra ADMIN_USER / ADMIN_PASSWORD del .env."""
+    """Login del panel interno — valida contra las credenciales del .env.
+
+    Soporta dos usuarios: superadmin (ADMIN_USER/ADMIN_PASSWORD) y viewer
+    (TEST_USER/TEST_PASSWORD). Debe mantenerse alineado con la función
+    serverless de Vercel `frontend/api/v1/auth/admin-login.js`.
+    """
     settings = get_settings()
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""
 
-    if (
-        not settings.admin_password
-        or username != settings.admin_user
-        or password != settings.admin_password
-    ):
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    if settings.admin_password and username == settings.admin_user and password == settings.admin_password:
+        token = create_access_token(subject=username, role="superadmin")
+        return TokenResponse(access_token=token)
 
-    token = create_access_token(subject="admin", role="superadmin")
-    return TokenResponse(access_token=token)
+    if settings.test_password and username == settings.test_user and password == settings.test_password:
+        token = create_access_token(subject=username, role="viewer")
+        return TokenResponse(access_token=token)
+
+    raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 
 @router.post("/forgot-password")
