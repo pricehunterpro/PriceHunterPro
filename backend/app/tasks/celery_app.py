@@ -82,20 +82,40 @@ def scrape_all_stores() -> dict:
             pass
 
 
+def _push_log(r, modulo: str, mensaje: str, severidad: str = "info") -> None:
+    import json
+    from datetime import datetime, timezone
+    entry = json.dumps({
+        "fecha": datetime.now(timezone.utc).strftime("%d/%m %H:%M"),
+        "modulo": modulo,
+        "tipo": severidad.upper(),
+        "mensaje": mensaje,
+        "severidad": severidad,
+    })
+    r.lpush("system:logs", entry)
+    r.ltrim("system:logs", 0, 199)
+
+
 def _run_scrape_all_stores() -> dict:
+    import redis as _redis
     from app.scrapers.falabella_scraper import FalabellaScraper
     from app.scrapers.ripley_scraper import RipleyScraper
     from app.scrapers.plazavea_scraper import PlazaVeaScraper
     from app.scrapers.oechsle_scraper import OechsleScraper
     from app.scrapers.estilos_scraper import EstilosScraper
     from app.scrapers.sodimac_scraper import SodimacScraper
+    from app.scrapers.tottus_scraper import TottusScraper
     from app.repositories.product_repo import bulk_upsert_store, log_scraping
 
-    scrapers = [FalabellaScraper(), RipleyScraper(), PlazaVeaScraper(), OechsleScraper(), EstilosScraper(), SodimacScraper()]
+    r_log = _redis.from_url(settings.redis_url)
+    scrapers = [FalabellaScraper(), RipleyScraper(), PlazaVeaScraper(), OechsleScraper(), EstilosScraper(), SodimacScraper(), TottusScraper()]
     results: dict[str, object] = {}
+
+    _push_log(r_log, "CeleryBeat", f"Scrape iniciado ({len(scrapers)} tiendas)", "info")
 
     for scraper in scrapers:
         store = getattr(scraper, "store", type(scraper).__name__)
+        store_label = store.capitalize() + "Scraper"
         try:
             from sqlalchemy import text as sql_text
             products = asyncio.run(scraper.get_category())
@@ -117,22 +137,47 @@ def _run_scrape_all_stores() -> dict:
                 log_scraping(session, store, "success", details=f"saved={saved} errors={errors}")
                 session.commit()
             results[store] = {"status": "ok", "saved": saved, "errors": errors}
+            sev = "warning" if saved < 300 else "info"
+            suffix = " (bajo promedio)" if saved < 300 else ""
+            _push_log(r_log, store_label, f"{saved:,} productos guardados{suffix}", sev)
         except Exception as exc:
             with Session(_engine) as session:
                 log_scraping(session, store, "error", error=str(exc))
                 session.commit()
             results[store] = {"status": "error", "error": str(exc), "trace": traceback.format_exc()[-500:]}
+            _push_log(r_log, store_label, f"Error: {str(exc)[:100]}", "error")
 
     # Notificar nuevas alertas por Telegram al finalizar todos los scrapers
     try:
-        _notify_new_alerts()
+        alerts_sent = _notify_new_alerts(r_log=r_log)
+        if alerts_sent:
+            channels = sum(1 for c in [settings.telegram_channel_dev, settings.telegram_channel_prd] if c)
+            _push_log(r_log, "TelegramNotifier", f"{alerts_sent} alerta(s) enviada(s) a {channels} canal(es)", "info")
+        else:
+            _push_log(r_log, "TelegramNotifier", "Sin nuevas alertas calificadas", "info")
     except Exception:
         pass
+
+    next_slots = [
+        (0, 30), (1, 30), (3, 0), (6, 0), (8, 0),
+        (10, 0), (12, 0), (15, 0), (18, 0), (20, 0), (22, 0),
+    ]
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    now_lima = datetime.now(ZoneInfo("America/Lima"))
+    next_run = "—"
+    for h, m in next_slots:
+        candidate = now_lima.replace(hour=h, minute=m, second=0, microsecond=0)
+        if candidate <= now_lima:
+            candidate += timedelta(days=1)
+        next_run = candidate.strftime("%H:%M")
+        break
+    _push_log(r_log, "CeleryBeat", f"Próximo scrape programado: {next_run}", "info")
 
     return results
 
 
-def _notify_new_alerts() -> None:
+def _notify_new_alerts(r_log=None) -> int:
     from app.services.telegram_notifier import notify_new_alerts
     from app.core.config import get_settings
     from sqlalchemy import text
@@ -140,7 +185,7 @@ def _notify_new_alerts() -> None:
 
     settings = get_settings()
     if not settings.telegram_bot_token:
-        return
+        return 0
 
     r = redis_lib.from_url(settings.redis_url)
 
@@ -256,6 +301,7 @@ def _notify_new_alerts() -> None:
         })
 
     channels = [c for c in [settings.telegram_channel_dev, settings.telegram_channel_prd] if c]
+    sent_count = 0
     for alert in new_alerts:
         ok_any = False
         for channel in channels:
@@ -264,6 +310,8 @@ def _notify_new_alerts() -> None:
         # Marcar en Redis SOLO si se envió realmente — evita silenciar deals no enviados
         if ok_any:
             r.setex(alert["_key"], 86400, "1")
+            sent_count += 1
+    return sent_count
 
 
 @app.task(name="publish_top_deals")

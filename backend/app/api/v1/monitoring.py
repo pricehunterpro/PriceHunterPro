@@ -7,7 +7,7 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
-_STORES = ["falabella", "ripley", "plazavea", "oechsle", "estilos", "sodimac"]
+_STORES = ["falabella", "ripley", "plazavea", "oechsle", "estilos", "sodimac", "tottus"]
 
 _BEAT_SCHEDULE = [
     {"hour": 0,  "minute": 30},
@@ -45,8 +45,8 @@ def _now_lima() -> datetime:
 
 def _next_run(hour: int, minute: int, now: datetime) -> str:
     from datetime import timedelta
-    import pytz
-    lima = pytz.timezone("America/Lima")
+    from zoneinfo import ZoneInfo
+    lima = ZoneInfo("America/Lima")
     now_lima = now.astimezone(lima)
     candidate = now_lima.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if candidate <= now_lima:
@@ -243,14 +243,25 @@ def get_tasks() -> list[dict[str, Any]]:
 
 @router.get("/logs")
 def get_logs() -> list[dict[str, Any]]:
-    # Preparado para conectar con logs reales (tabla system_logs o archivo)
+    import json
+    r = _get_redis()
+    try:
+        raw_entries = r.lrange("system:logs", 0, 49)
+        logs = []
+        for raw in raw_entries:
+            try:
+                entry = json.loads(raw)
+                logs.append(entry)
+            except Exception:
+                continue
+        if logs:
+            return logs
+    except Exception:
+        pass
     now_str = _now_lima().strftime("%d/%m %H:%M")
     return [
-        {"fecha": now_str, "modulo": "SodimacScraper",   "tipo": "INFO",    "mensaje": "Scrape completado correctamente",        "severidad": "info"},
-        {"fecha": now_str, "modulo": "FalabellaScraper",  "tipo": "INFO",    "mensaje": "7,453 productos guardados",              "severidad": "info"},
-        {"fecha": now_str, "modulo": "TelegramNotifier",  "tipo": "INFO",    "mensaje": "Alertas enviadas a 2 canales",           "severidad": "info"},
-        {"fecha": now_str, "modulo": "RipleyScraper",     "tipo": "WARNING", "mensaje": "167 productos obtenidos (bajo promedio)","severidad": "warning"},
-        {"fecha": now_str, "modulo": "CeleryBeat",        "tipo": "INFO",    "mensaje": "Próximo scrape programado correctamente","severidad": "info"},
+        {"fecha": now_str, "modulo": "Sistema", "tipo": "INFO",
+         "mensaje": "Sin logs recientes — se generarán en el próximo scrape", "severidad": "info"},
     ]
 
 

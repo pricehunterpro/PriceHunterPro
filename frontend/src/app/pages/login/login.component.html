@@ -1,0 +1,44 @@
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="logo">
+      <span class="logo-icon">🏷️</span>
+      <span class="logo-text">PriceHunter<span class="accent">Pro</span></span>
+    </div>
+    <p class="subtitle">Panel de administración</p>
+
+    <form (ngSubmit)="submit()" #f="ngForm">
+      <div class="field">
+        <label>Usuario</label>
+        <input
+          type="text"
+          [(ngModel)]="username"
+          name="username"
+          placeholder="admin"
+          autocomplete="username"
+          [disabled]="loading"
+          required
+        />
+      </div>
+
+      <div class="field">
+        <label>Contraseña</label>
+        <input
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          placeholder="••••••••••"
+          autocomplete="current-password"
+          [disabled]="loading"
+          required
+        />
+      </div>
+
+      <div class="error" *ngIf="error">{{ error }}</div>
+
+      <button type="submit" class="btn-login" [disabled]="loading || !username || !password">
+        <span *ngIf="!loading">Ingresar</span>
+        <span *ngIf="loading" class="spinner"></span>
+      </button>
+    </form>
+  </div>
+</div>

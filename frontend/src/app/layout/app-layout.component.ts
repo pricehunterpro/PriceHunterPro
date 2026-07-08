@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { DealsStateService } from '../services/deals-state.service';
+import { AuthService } from '../services/auth.service';
 
 @Component({
   selector: 'app-layout',
@@ -13,6 +14,7 @@ import { DealsStateService } from '../services/deals-state.service';
 })
 export class AppLayoutComponent implements OnInit {
   protected s    = inject(DealsStateService);
+  protected auth = inject(AuthService);
   private router = inject(Router);
   private route  = inject(ActivatedRoute);
 
@@ -28,6 +30,7 @@ export class AppLayoutComponent implements OnInit {
     const key = this.route.snapshot.queryParamMap.get('key') ?? '';
     if (key === 'ph2026') sessionStorage.setItem('ph_admin', '1');
     this.s.init();
+    if (this.auth.isAdmin()) this.s.isAdmin = true;
   }
 
   toggle(group: string): void {
@@ -70,6 +73,10 @@ export class AppLayoutComponent implements OnInit {
     sessionStorage.removeItem('ph_admin');
     this.s.isAdmin  = false;
     this.profileOpen = false;
+  }
+
+  logout(): void {
+    this.auth.logout();
   }
 
   @HostListener('document:click', ['$event'])

@@ -9,22 +9,31 @@ import { CentroMonitoreoComponent } from './pages/centro-monitoreo/centro-monito
 import { TiktokFactoryComponent } from './pages/tiktok-factory/tiktok-factory.component';
 import { SupervisionComponent } from './pages/supervision/supervision.component';
 import { PublicadorComponent } from './pages/publicador/publicador.component';
+import { LoginComponent } from './pages/login/login.component';
+import { authGuard, adminGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
+  { path: 'login', component: LoginComponent },
   {
     path: '',
     component: AppLayoutComponent,
+    canActivate: [authGuard],
     children: [
-      { path: '',                           redirectTo: 'oportunidades', pathMatch: 'full' },
-      { path: 'oportunidades',              component: OportunidadesComponent },
-      { path: 'alertas',                    component: AlertasComponent },
-      { path: 'gangas',                     component: GangasComponent },
-      { path: 'motor-ia',                   component: MotorIaComponent },
-      { path: 'automatizacion/monitoreo',   component: CentroMonitoreoComponent },
-      { path: 'marketing/tiktok-factory',   component: TiktokFactoryComponent },
-      { path: 'marketing/supervision',      component: SupervisionComponent },
-      { path: 'marketing/publicador-ia',    component: PublicadorComponent },
-      { path: '**',                         component: ComingSoonComponent },
+      { path: '', redirectTo: 'oportunidades', pathMatch: 'full' },
+
+      // ── Acceso viewer + admin ──
+      { path: 'oportunidades', component: OportunidadesComponent },
+      { path: 'alertas',       component: AlertasComponent },
+      { path: 'gangas',        component: GangasComponent },
+
+      // ── Solo admin ──
+      { path: 'motor-ia',                    component: MotorIaComponent,         canActivate: [adminGuard] },
+      { path: 'automatizacion/monitoreo',    component: CentroMonitoreoComponent, canActivate: [adminGuard] },
+      { path: 'marketing/tiktok-factory',    component: TiktokFactoryComponent,   canActivate: [adminGuard] },
+      { path: 'marketing/supervision',       component: SupervisionComponent,     canActivate: [adminGuard] },
+      { path: 'marketing/publicador-ia',     component: PublicadorComponent,      canActivate: [adminGuard] },
+
+      { path: '**', component: ComingSoonComponent },
     ],
   },
 ];

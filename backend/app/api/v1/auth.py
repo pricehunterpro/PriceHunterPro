@@ -1,9 +1,11 @@
 import uuid
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import InMemorySession, get_db
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models import User
@@ -81,6 +83,24 @@ async def login(payload: LoginRequest, db: AsyncSession | InMemorySession = Depe
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token() -> TokenResponse:
     token = create_access_token(subject="refresh-user")
+    return TokenResponse(access_token=token)
+
+
+@router.post("/admin-login", response_model=TokenResponse)
+def admin_login(body: dict[str, Any] = Body(...)) -> TokenResponse:
+    """Login del panel interno — valida contra ADMIN_USER / ADMIN_PASSWORD del .env."""
+    settings = get_settings()
+    username = (body.get("username") or "").strip()
+    password = body.get("password") or ""
+
+    if (
+        not settings.admin_password
+        or username != settings.admin_user
+        or password != settings.admin_password
+    ):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+
+    token = create_access_token(subject="admin", role="superadmin")
     return TokenResponse(access_token=token)
 
 

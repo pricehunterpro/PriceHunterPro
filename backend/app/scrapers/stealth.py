@@ -3,7 +3,13 @@ from __future__ import annotations
 
 import random
 
-from playwright.async_api import BrowserContext, Page
+# BrowserContext and Page imported lazily so this module doesn't require
+# Playwright to be installed when only random_user_agent() is used.
+try:
+    from playwright.async_api import BrowserContext, Page
+except ImportError:
+    BrowserContext = None  # type: ignore[assignment,misc]
+    Page = None  # type: ignore[assignment,misc]
 
 # Pool of realistic desktop user agents
 _USER_AGENTS = [

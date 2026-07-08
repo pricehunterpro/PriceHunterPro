@@ -240,9 +240,17 @@
   color: var(--accent); font-size: 10px; font-weight: 800;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.sb-footer-info { display: flex; flex-direction: column; line-height: 1.3; overflow: hidden; }
+.sb-footer-info { display: flex; flex-direction: column; line-height: 1.3; overflow: hidden; flex: 1; }
 .sb-footer-name { font-size: 12px; font-weight: 600; color: #d0d0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-footer-role { font-size: 10px; color: var(--muted); }
+.sb-logout {
+  background: none; border: none; cursor: pointer; padding: 4px;
+  color: var(--muted); border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: color .2s, background .2s;
+}
+.sb-logout:hover { color: #f85149; background: rgba(248,81,73,.1); }
+.sb-collapsed .sb-logout { display: none; }
 
 /* ══════════════════════════════════════════════════════
    HEADER

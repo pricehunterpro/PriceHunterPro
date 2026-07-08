@@ -67,7 +67,7 @@
       </div>
 
       <!-- ── Inteligencia IA ── -->
-      <div class="sb-group">
+      <div class="sb-group" *ngIf="auth.isAdmin()">
         <button class="sb-group-hdr" (click)="toggle('ia')" [class.open]="isOpen('ia')">
           <span class="sb-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -86,7 +86,7 @@
       </div>
 
       <!-- ── Marketing ── -->
-      <div class="sb-group">
+      <div class="sb-group" *ngIf="auth.isAdmin()">
         <button class="sb-group-hdr" (click)="toggle('mkt')" [class.open]="isOpen('mkt')">
           <span class="sb-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -106,7 +106,7 @@
       </div>
 
       <!-- ── Business Intelligence ── -->
-      <div class="sb-group">
+      <div class="sb-group" *ngIf="auth.isAdmin()">
         <button class="sb-group-hdr" (click)="toggle('bi')" [class.open]="isOpen('bi')">
           <span class="sb-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -125,7 +125,7 @@
       </div>
 
       <!-- ── Automatizacion ── -->
-      <div class="sb-group">
+      <div class="sb-group" *ngIf="auth.isAdmin()">
         <button class="sb-group-hdr" (click)="toggle('auto')" [class.open]="isOpen('auto')">
           <span class="sb-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -144,7 +144,7 @@
       </div>
 
       <!-- ── Administracion ── -->
-      <div class="sb-group sb-group-bottom">
+      <div class="sb-group sb-group-bottom" *ngIf="auth.isAdmin()">
         <button class="sb-group-hdr" (click)="toggle('adm')" [class.open]="isOpen('adm')">
           <span class="sb-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -168,9 +168,16 @@
     <div class="sb-footer">
       <div class="sb-avatar">PH</div>
       <div class="sb-footer-info">
-        <span class="sb-footer-name">Admin</span>
-        <span class="sb-footer-role">{{ s.isAdmin ? 'Super Admin' : 'Viewer' }}</span>
+        <span class="sb-footer-name">{{ auth.getUsername() }}</span>
+        <span class="sb-footer-role">{{ auth.isAdmin() ? 'Super Admin' : 'Viewer' }}</span>
       </div>
+      <button class="sb-logout" (click)="logout()" title="Cerrar sesión">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
     </div>
 
   </aside>

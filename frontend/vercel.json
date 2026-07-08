@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/pricehunter-frontend",
+  "framework": null,
+  "rewrites": [
+    { "source": "/((?!api/)(?!index\\.html$).*)", "destination": "/index.html" }
+  ]
+}

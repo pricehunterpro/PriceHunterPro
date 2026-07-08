@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "ng serve",
-    "build": "ng build"
+    "build": "ng build --configuration=production"
   },
   "dependencies": {
     "@angular/animations": "^17.0.0",
