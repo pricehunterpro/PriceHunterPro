@@ -1,0 +1,204 @@
+<div class="tr-page">
+
+  <!-- Header -->
+  <div class="tr-header">
+    <div>
+      <h2>📈 Tendencias IA <span class="tr-chip">Intelligence Center</span></h2>
+      <p>Centro de inteligencia del mercado: qué categorías crecen, qué tiendas y marcas lideran, y dónde están los mejores márgenes.</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="tr-filters">
+    <div class="f-group">
+      <label>Tienda</label>
+      <select [(ngModel)]="fStore" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let s of storesList" [value]="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>Categoría</label>
+      <select [(ngModel)]="fCategory" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let c of categoriesList" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>Marca</label>
+      <select [(ngModel)]="fBrand" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let b of brandsList" [value]="b">{{ b }}</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>Score mínimo: {{ fMinScore }}</label>
+      <input type="range" min="0" max="100" step="5" [(ngModel)]="fMinScore" (change)="onFilterChange()" />
+    </div>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="tr-loading" *ngIf="loading">Analizando el mercado…</div>
+
+  <ng-container *ngIf="!loading">
+
+    <!-- KPIs -->
+    <div class="tr-kpis" *ngIf="kpis">
+      <div class="kpi accent"><span class="kpi-l">Productos monitoreados</span><span class="kpi-n">{{ kpis.productosMonitoreados | number }}</span></div>
+      <div class="kpi"><span class="kpi-l">Categorías activas</span><span class="kpi-n">{{ kpis.categoriasActivas }}</span></div>
+      <div class="kpi"><span class="kpi-l">Marcas activas</span><span class="kpi-n">{{ kpis.marcasActivas }}</span></div>
+      <div class="kpi"><span class="kpi-l">Tiendas monitoreadas</span><span class="kpi-n">{{ kpis.tiendasMonitoreadas }}</span></div>
+      <div class="kpi warn"><span class="kpi-l">Descuento promedio</span><span class="kpi-n">{{ kpis.descuentoPromedio }}%</span></div>
+      <div class="kpi info"><span class="kpi-l">Margen promedio</span><span class="kpi-n">{{ kpis.margenPromedio }}%</span></div>
+    </div>
+
+    <!-- SECCIÓN 7 (arriba por relevancia): INSIGHTS IA -->
+    <section class="tr-section" *ngIf="insights.length">
+      <div class="sec-head"><h3>💡 Insights IA</h3><span class="sec-sub">Generados automáticamente</span></div>
+      <div class="insight-grid">
+        <div class="insight-card" *ngFor="let i of insights" [attr.data-tipo]="i.tipo">
+          <span class="insight-icon">{{ i.icon }}</span>
+          <p>{{ i.titulo }}</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="tr-cols">
+      <!-- SECCIÓN 1: TENDENCIA POR CATEGORÍA (barras verticales) -->
+      <section class="tr-section">
+        <div class="sec-head">
+          <h3>Tendencia por categoría</h3>
+          <div class="metric-toggle">
+            <button [class.active]="catMetric==='ofertas'" (click)="catMetric='ofertas'">Ofertas</button>
+            <button [class.active]="catMetric==='descuentoPromedio'" (click)="catMetric='descuentoPromedio'">Descuento</button>
+            <button [class.active]="catMetric==='scorePromedio'" (click)="catMetric='scorePromedio'">Score</button>
+          </div>
+        </div>
+        <div class="bar-chart">
+          <div class="bar-col" *ngFor="let c of topCategories" [title]="c.category + ': ' + catValue(c)">
+            <div class="bar-track">
+              <div class="bar-fill" [style.height.%]="pct(catValue(c), catMax)"></div>
+              <span class="bar-val">{{ catValue(c) }}{{ catMetric !== 'ofertas' ? (catMetric==='descuentoPromedio' ? '%' : '') : '' }}</span>
+            </div>
+            <span class="bar-label">{{ c.category }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECCIÓN 6: TENDENCIA TEMPORAL (línea SVG) -->
+      <section class="tr-section">
+        <div class="sec-head">
+          <h3>Tendencia temporal</h3>
+          <div class="period-tabs">
+            <button *ngFor="let p of periods" [class.active]="period===p.value" (click)="onPeriodChange(p.value)">{{ p.label }}</button>
+          </div>
+        </div>
+        <div class="metric-toggle sm">
+          <button [class.active]="temporalMetric==='ofertas'" (click)="temporalMetric='ofertas'">Cantidad de ofertas</button>
+          <button [class.active]="temporalMetric==='descuentos'" (click)="temporalMetric='descuentos'">Descuento promedio</button>
+        </div>
+        <div class="line-chart" *ngIf="tSeries.length">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="line-svg">
+            <defs>
+              <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#00E58F" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#00E58F" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <polygon [attr.points]="areaPoints" fill="url(#areaGrad)"/>
+            <polyline [attr.points]="linePoints" fill="none" stroke="#00E58F" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+          </svg>
+          <div class="line-labels">
+            <span *ngFor="let l of (temporal?.labels || [])">{{ l }}</span>
+          </div>
+        </div>
+        <div class="chart-empty" *ngIf="!tSeries.length">Sin datos temporales.</div>
+      </section>
+    </div>
+
+    <!-- SECCIÓN 2: TENDENCIA POR TIENDA (barras horizontales) -->
+    <section class="tr-section">
+      <div class="sec-head"><h3>Tendencia por tienda</h3><span class="sec-sub">Ofertas · descuento · score</span></div>
+      <div class="hbar-list">
+        <div class="hbar-row" *ngFor="let s of stores">
+          <span class="hbar-label"><span class="badge-store" [class]="'badge-store ' + storeBadge(s.store!)">{{ s.store }}</span></span>
+          <div class="hbar-track">
+            <div class="hbar-fill" [style.width.%]="pct(s.ofertas!, storeMax)"></div>
+          </div>
+          <span class="hbar-num">{{ s.ofertas | number }}</span>
+          <span class="hbar-metric disc">-{{ s.descuentoPromedio }}%</span>
+          <span class="hbar-metric score">{{ s.scorePromedio }}</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="tr-cols">
+      <!-- SECCIÓN 3: MARCAS MÁS ACTIVAS -->
+      <section class="tr-section">
+        <div class="sec-head"><h3>Marcas más activas</h3><span class="sec-sub">Top 20</span></div>
+        <div class="brand-list">
+          <div class="brand-row" *ngFor="let b of brands; let i = index">
+            <span class="brand-rank">{{ i + 1 }}</span>
+            <span class="brand-name">{{ b.brand }}</span>
+            <div class="brand-bar"><div class="brand-fill" [style.width.%]="pct(b.productos!, brandMax)"></div></div>
+            <span class="brand-num">{{ b.productos }}</span>
+            <span class="brand-metric disc">-{{ b.descuentoPromedio }}%</span>
+            <span class="brand-metric score">{{ b.scorePromedio }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECCIÓN 5: HEATMAP DE CATEGORÍAS -->
+      <section class="tr-section">
+        <div class="sec-head"><h3>Heatmap de categorías</h3><span class="sec-sub">Intensidad por nº de ofertas</span></div>
+        <div class="heat-list">
+          <div class="heat-row" *ngFor="let c of heatItems()">
+            <span class="heat-label">{{ c.category }}</span>
+            <div class="heat-cell" [style.background]="'rgba(0,229,143,' + heatAlpha(c) + ')'">
+              <span class="heat-val">{{ c.ofertas }}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- SECCIÓN 4: PRODUCTOS MÁS REPETIDOS -->
+    <section class="tr-section">
+      <div class="sec-head"><h3>Productos más repetidos</h3><span class="sec-sub">Detectados en varias tiendas / veces</span></div>
+      <div class="tr-table-wrap">
+        <table class="tr-table">
+          <thead>
+            <tr>
+              <th class="c-prod">Producto</th>
+              <th class="c-num">Veces</th>
+              <th class="c-num">Precio mín.</th>
+              <th class="c-num">Precio máx.</th>
+              <th class="c-num">Precio prom.</th>
+              <th class="c-num">Score prom.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of products">
+              <td class="c-prod">
+                <div class="prod-cell">
+                  <div class="prod-thumb"><img *ngIf="p.imageUrl" [src]="p.imageUrl" [alt]="p.name" loading="lazy" /></div>
+                  <div class="prod-info">
+                    <span class="prod-name">{{ p.name }}</span>
+                    <span class="prod-stores">{{ p.tiendas.join(' · ') }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="c-num"><span class="veces-badge">×{{ p.veces }}</span></td>
+              <td class="c-num">S/ {{ p.precioMin }}</td>
+              <td class="c-num">S/ {{ p.precioMax }}</td>
+              <td class="c-num price-prom">S/ {{ p.precioProm }}</td>
+              <td class="c-num"><span class="score-pill">{{ p.scorePromedio }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </ng-container>
+</div>

@@ -11,6 +11,7 @@ import { SupervisionComponent } from './pages/supervision/supervision.component'
 import { PublicadorComponent } from './pages/publicador/publicador.component';
 import { CalendarioComponent } from './pages/calendario/calendario.component';
 import { RankingIaComponent } from './pages/ranking-ia/ranking-ia.component';
+import { TendenciasComponent } from './pages/tendencias/tendencias.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
@@ -31,6 +32,7 @@ export const routes: Routes = [
       // ── Solo admin ──
       { path: 'motor-ia',                    component: MotorIaComponent,         canActivate: [adminGuard] },
       { path: 'inteligencia-ia/ranking-ia',  component: RankingIaComponent,       canActivate: [adminGuard] },
+      { path: 'inteligencia-ia/tendencias',  component: TendenciasComponent,      canActivate: [adminGuard] },
       { path: 'automatizacion/monitoreo',    component: CentroMonitoreoComponent, canActivate: [adminGuard] },
       { path: 'marketing/tiktok-factory',    component: TiktokFactoryComponent,   canActivate: [adminGuard] },
       { path: 'marketing/supervision',       component: SupervisionComponent,     canActivate: [adminGuard] },

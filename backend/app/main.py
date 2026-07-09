@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.ai import router as ai_router
+from app.api.v1.ai_trends import router as ai_trends_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.deals import router as deals_router
 from app.api.v1.monitoring import router as monitoring_router
@@ -25,6 +26,7 @@ app.add_middleware(
 )
 
 app.include_router(ai_router,          prefix="/api/v1")
+app.include_router(ai_trends_router,   prefix="/api/v1")
 app.include_router(auth_router,        prefix="/api/v1")
 app.include_router(deals_router,       prefix="/api/v1")
 app.include_router(monitoring_router,  prefix="/api/v1")
