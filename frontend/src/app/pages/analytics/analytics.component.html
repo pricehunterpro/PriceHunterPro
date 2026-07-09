@@ -1,0 +1,154 @@
+<div class="an-page">
+
+  <!-- Header -->
+  <div class="an-header">
+    <div>
+      <h2>📊 Analytics <span class="an-chip">Business Intelligence</span></h2>
+      <p>Vista ejecutiva del rendimiento general de PriceHunter Pro.</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="an-filters">
+    <div class="f-group">
+      <label>Período</label>
+      <div class="period-tabs">
+        <button *ngFor="let p of periods" [class.active]="period===p.value" (click)="onPeriodChange(p.value)">{{ p.label }}</button>
+      </div>
+    </div>
+    <div class="f-group">
+      <label>Tienda</label>
+      <select [(ngModel)]="fStore" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let s of storesList" [value]="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>Categoría</label>
+      <select [(ngModel)]="fCategory" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let c of categoriesList" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>Canal</label>
+      <select [(ngModel)]="fChannel" (ngModelChange)="onFilterChange()">
+        <option value="">Todos</option>
+        <option *ngFor="let c of allChannels" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label>Score mínimo: {{ fMinScore }}</label>
+      <input type="range" min="0" max="100" step="5" [(ngModel)]="fMinScore" (change)="onFilterChange()" />
+    </div>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="an-loading" *ngIf="loading">Cargando métricas…</div>
+
+  <ng-container *ngIf="!loading">
+
+    <!-- KPIs -->
+    <div class="an-kpis" *ngIf="kpis">
+      <div class="kpi accent"><span class="kpi-l">Oportunidades detectadas</span><span class="kpi-n">{{ kpis.oportunidadesDetectadas | number }}</span></div>
+      <div class="kpi fire"><span class="kpi-l">Gangas detectadas</span><span class="kpi-n">{{ kpis.gangasDetectadas | number }}</span></div>
+      <div class="kpi alert"><span class="kpi-l">Alertas generadas</span><span class="kpi-n">{{ kpis.alertasGeneradas | number }}</span></div>
+      <div class="kpi"><span class="kpi-l">Publicaciones realizadas</span><span class="kpi-n">{{ kpis.publicacionesRealizadas | number }}</span></div>
+      <div class="kpi"><span class="kpi-l">Videos TikTok</span><span class="kpi-n">{{ kpis.videosTiktokGenerados | number }}</span></div>
+      <div class="kpi info"><span class="kpi-l">Clicks estimados <span class="est" *ngIf="isEstimated('clicksEstimados')">est</span></span><span class="kpi-n">{{ kpis.clicksEstimados | number }}</span></div>
+      <div class="kpi info"><span class="kpi-l">CTR estimado <span class="est" *ngIf="isEstimated('ctrEstimado')">est</span></span><span class="kpi-n">{{ kpis.ctrEstimado }}%</span></div>
+      <div class="kpi ok"><span class="kpi-l">Score promedio</span><span class="kpi-n">{{ kpis.scorePromedio }}</span></div>
+    </div>
+
+    <div class="an-cols">
+      <!-- Ofertas por día -->
+      <section class="an-card">
+        <div class="card-head"><h3>Ofertas por día</h3><span class="card-sub">{{ period }}</span></div>
+        <div class="line-chart" *ngIf="offersByDay?.ofertas?.length; else noDay">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="line-svg">
+            <defs><linearGradient id="gDay" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00E58F" stop-opacity=".35"/><stop offset="100%" stop-color="#00E58F" stop-opacity="0"/></linearGradient></defs>
+            <polygon [attr.points]="area(offersByDay!.ofertas)" fill="url(#gDay)"/>
+            <polyline [attr.points]="points(offersByDay!.ofertas)" fill="none" stroke="#00E58F" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+          </svg>
+          <div class="line-labels"><span *ngFor="let l of (offersByDay?.labels || [])">{{ l }}</span></div>
+        </div>
+        <ng-template #noDay><div class="chart-empty">Sin datos.</div></ng-template>
+      </section>
+
+      <!-- Evolución del Score IA -->
+      <section class="an-card">
+        <div class="card-head"><h3>Evolución del Score IA</h3><span class="card-sub">{{ period }}</span></div>
+        <div class="line-chart" *ngIf="scoreEvo?.scores?.length; else noScore">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="line-svg">
+            <defs><linearGradient id="gScore" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6ab0ff" stop-opacity=".3"/><stop offset="100%" stop-color="#6ab0ff" stop-opacity="0"/></linearGradient></defs>
+            <polygon [attr.points]="area(scoreEvo!.scores)" fill="url(#gScore)"/>
+            <polyline [attr.points]="points(scoreEvo!.scores)" fill="none" stroke="#6ab0ff" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+          </svg>
+          <div class="line-labels"><span *ngFor="let l of (scoreEvo?.labels || [])">{{ l }}</span></div>
+        </div>
+        <ng-template #noScore><div class="chart-empty">Sin datos.</div></ng-template>
+      </section>
+    </div>
+
+    <div class="an-cols">
+      <!-- Ofertas por tienda -->
+      <section class="an-card">
+        <div class="card-head"><h3>Ofertas por tienda</h3></div>
+        <div class="hbar-list">
+          <div class="hbar-row" *ngFor="let s of offersByStore">
+            <span class="hbar-label"><span class="badge-store" [class]="'badge-store ' + storeBadge(s.store!)">{{ s.store }}</span></span>
+            <div class="hbar-track"><div class="hbar-fill" [style.width.%]="pct(s.ofertas, storeMax)"></div></div>
+            <span class="hbar-num">{{ s.ofertas | number }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Publicaciones por canal -->
+      <section class="an-card">
+        <div class="card-head"><h3>Publicaciones por canal</h3></div>
+        <div class="ch-chart">
+          <div class="ch-col" *ngFor="let c of channels">
+            <div class="ch-track">
+              <div class="ch-fill" [style.height.%]="pct(c.total, channelMax)" [style.background]="channelColor(c.canal)"></div>
+              <span class="ch-val">{{ c.total }}</span>
+            </div>
+            <span class="ch-label">{{ c.canal }}</span>
+            <span class="ch-sub">{{ c.publicados }} pub.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="an-cols">
+      <!-- Ofertas por categoría -->
+      <section class="an-card">
+        <div class="card-head"><h3>Ofertas por categoría</h3></div>
+        <div class="bar-chart">
+          <div class="bar-col" *ngFor="let c of offersByCategory" [title]="c.category + ': ' + c.ofertas">
+            <div class="bar-track">
+              <div class="bar-fill" [style.height.%]="pct(c.ofertas, catMax)"></div>
+              <span class="bar-val">{{ c.ofertas }}</span>
+            </div>
+            <span class="bar-label">{{ c.category }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Top categorías -->
+      <section class="an-card">
+        <div class="card-head"><h3>Top categorías</h3><span class="card-sub">Por nº de ofertas</span></div>
+        <div class="top-list">
+          <div class="top-row" *ngFor="let c of topCategories; let i = index">
+            <span class="top-rank" [class.gold]="i===0" [class.silver]="i===1" [class.bronze]="i===2">{{ i + 1 }}</span>
+            <span class="top-name">{{ c.category }}</span>
+            <span class="top-stat">{{ c.ofertas | number }} ofertas</span>
+            <span class="top-stat disc">-{{ c.descuentoPromedio }}%</span>
+            <span class="top-stat score">{{ c.scorePromedio }}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </ng-container>
+</div>
