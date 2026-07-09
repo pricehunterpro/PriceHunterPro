@@ -54,6 +54,7 @@ class DealService:
                             COUNT(*)    AS hist_count
                         FROM price_history
                         WHERE price > 0
+                          AND price < 100000            -- excluye precios basura (parsing corrupto)
                           AND scraped_at < NOW() - INTERVAL '12 hours'
                         GROUP BY store_product_id
                     )
@@ -76,6 +77,7 @@ class DealService:
                     JOIN products p ON p.id = sp.product_id
                     LEFT JOIN hist h ON h.store_product_id = sp.id
                     WHERE sp.current_price > 0
+                      AND sp.current_price < 100000     -- oculta productos con precio corrupto
                       AND sp.in_stock = true
                     ORDER BY sp.discount_percentage DESC NULLS LAST
                     LIMIT 20000

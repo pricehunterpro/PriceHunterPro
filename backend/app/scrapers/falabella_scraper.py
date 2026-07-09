@@ -90,9 +90,13 @@ async def _get_next_data(client: httpx.AsyncClient, url: str) -> dict:
 def _parse_price(raw: str | list) -> Decimal:
     """Convert Falabella price formats to Decimal.
     Formats: '2,399' / ['2,399'] / 'S/ 2,399.90'
+
+    OJO: cuando `raw` es una lista con varios elementos (p. ej. ['1,599','1,619'])
+    NO se deben concatenar — hacerlo producía precios basura ('15991619').
+    Se toma solo el primer elemento (el precio principal mostrado).
     """
     if isinstance(raw, list):
-        raw = "".join(str(x) for x in raw)
+        raw = str(raw[0]) if raw else ""
     text = str(raw).replace(",", "")
     digits = re.sub(r"[^\d.]", "", text)
     try:
