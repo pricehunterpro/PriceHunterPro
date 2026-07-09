@@ -22,6 +22,7 @@ import { ProcesosComponent } from './pages/procesos/procesos.component';
 import { LogsComponent } from './pages/logs/logs.component';
 import { HistorialComponent } from './pages/historial/historial.component';
 import { UsuariosComponent } from './pages/usuarios/usuarios.component';
+import { TiendasComponent } from './pages/tiendas/tiendas.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
@@ -53,6 +54,7 @@ export const routes: Routes = [
       { path: 'automatizacion/procesos',     component: ProcesosComponent,        canActivate: [adminGuard] },
       { path: 'automatizacion/logs',         component: LogsComponent,            canActivate: [adminGuard] },
       { path: 'administracion/usuarios',     component: UsuariosComponent,        canActivate: [adminGuard] },
+      { path: 'administracion/tiendas',      component: TiendasComponent,         canActivate: [adminGuard] },
       { path: 'marketing/tiktok-factory',    component: TiktokFactoryComponent,   canActivate: [adminGuard] },
       { path: 'marketing/supervision',       component: SupervisionComponent,     canActivate: [adminGuard] },
       { path: 'marketing/publicador-ia',     component: PublicadorComponent,      canActivate: [adminGuard] },

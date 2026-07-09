@@ -1,0 +1,106 @@
+<div class="ti-page">
+
+  <!-- Header -->
+  <div class="ti-header">
+    <div>
+      <h2>🏬 Tiendas <span class="ti-chip">Administración</span></h2>
+      <p>Administra las tiendas monitoreadas y su relación con los scrapers. Agrega nuevas sin tocar código.</p>
+    </div>
+    <button class="add-btn" (click)="openNew()">＋ Nueva tienda</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="ti-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Total tiendas</span><span class="kpi-n">{{ kpis.totalTiendas }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">Activas</span><span class="kpi-n">{{ kpis.activas }}</span></div>
+    <div class="kpi"><span class="kpi-l">Inactivas</span><span class="kpi-n">{{ kpis.inactivas }}</span></div>
+    <div class="kpi info"><span class="kpi-l">Productos monitoreados</span><span class="kpi-n">{{ kpis.productosTotales | number }}</span></div>
+    <div class="kpi bad"><span class="kpi-l">Con error</span><span class="kpi-n">{{ kpis.conError }}</span></div>
+  </div>
+
+  <div class="ti-loading" *ngIf="loading && !items.length">Cargando tiendas…</div>
+
+  <!-- Grid de tarjetas -->
+  <div class="ti-grid" *ngIf="items.length">
+    <div class="store-card" *ngFor="let s of items">
+      <div class="sc-top" [style.borderColor]="s.color + '55'">
+        <span class="sc-logo" [style.background]="s.color + '22'" [style.color]="s.color" [style.borderColor]="s.color + '55'">{{ s.logo }}</span>
+        <div class="sc-info">
+          <span class="sc-name">{{ s.nombre }}</span>
+          <a class="sc-domain" [href]="s.url" target="_blank" rel="noopener">{{ s.dominio }} ↗</a>
+        </div>
+        <span class="st-badge" [class.active]="s.estado==='Activo'"><span class="st-dot"></span>{{ s.estado }}</span>
+      </div>
+
+      <div class="sc-badges">
+        <span class="b-tipo">{{ s.tipo }}</span>
+        <span class="b-cat">{{ s.categoria }}</span>
+        <span class="b-freq">⏱ {{ s.frecuencia }}</span>
+        <span class="b-scraper" [class]="'b-scraper ' + scStatusClass(s.scraperEstado)">scraper: {{ s.scraperEstado }}</span>
+      </div>
+
+      <div class="sc-stats">
+        <div><span>Productos</span><b>{{ s.productos | number }}</b></div>
+        <div><span>Tiempo prom.</span><b>{{ s.tiempoPromedio ? s.tiempoPromedio + 's' : '—' }}</b></div>
+        <div><span>Errores</span><b [class.err]="s.errores>0">{{ s.errores }}</b></div>
+        <div><span>Últ. sync</span><b class="sm">{{ s.ultimaSincronizacion ? (s.ultimaSincronizacion | date:'dd/MM HH:mm') : '—' }}</b></div>
+      </div>
+
+      <div class="sc-actions">
+        <button (click)="test(s)" title="Probar scraper">▶ Probar</button>
+        <button (click)="openHistory(s)" title="Ver historial">📄 Historial</button>
+        <button (click)="openEdit(s)" title="Editar">✎</button>
+        <button (click)="toggle(s)" [title]="s.estado==='Activo' ? 'Desactivar' : 'Activar'">{{ s.estado==='Activo' ? '⏸' : '▶' }}</button>
+        <button class="del" (click)="remove(s)" title="Eliminar">🗑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Modal form ══ -->
+  <div class="ti-modal-backdrop" *ngIf="showForm" (click)="closeForm()">
+    <div class="ti-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head"><h3>{{ editing ? 'Editar tienda' : 'Nueva tienda' }}</h3><button class="modal-close" (click)="closeForm()">✕</button></div>
+      <div class="modal-body">
+        <div class="fld full"><label>Nombre</label><input type="text" [(ngModel)]="form.nombre" placeholder="Nombre de la tienda" /></div>
+        <div class="fld"><label>Dominio</label><input type="text" [(ngModel)]="form.dominio" placeholder="tienda.com.pe" /></div>
+        <div class="fld"><label>URL base</label><input type="text" [(ngModel)]="form.url" placeholder="https://…" /></div>
+        <div class="fld"><label>Tipo de scraper</label><select [(ngModel)]="form.tipo"><option *ngFor="let t of tipos" [value]="t">{{ t }}</option></select></div>
+        <div class="fld"><label>Categoría</label><select [(ngModel)]="form.categoria"><option *ngFor="let c of categorias" [value]="c">{{ c }}</option></select></div>
+        <div class="fld"><label>Frecuencia</label><select [(ngModel)]="form.frecuencia"><option *ngFor="let f of frecuencias" [value]="f">{{ f }}</option></select></div>
+        <div class="fld"><label>Estado</label><select [(ngModel)]="form.estado"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div>
+        <div class="fld"><label>Scraper asociado</label><input type="text" [(ngModel)]="form.scraper_asociado" placeholder="id del scraper" /></div>
+        <div class="fld color"><label>Color</label><div class="color-row"><input type="color" [(ngModel)]="form.color" /><span>{{ form.color }}</span></div></div>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" (click)="closeForm()">Cancelar</button>
+        <button class="save-btn" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando…' : (editing ? 'Guardar' : 'Crear tienda') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Modal historial ══ -->
+  <div class="ti-modal-backdrop" *ngIf="historyStore" (click)="closeHistory()">
+    <div class="ti-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head"><h3>Historial · {{ historyStore.nombre }}</h3><button class="modal-close" (click)="closeHistory()">✕</button></div>
+      <div class="modal-body single">
+        <div class="hist-empty" *ngIf="!history.length">Sin ejecuciones registradas.</div>
+        <table class="hist-table" *ngIf="history.length">
+          <thead><tr><th>Fecha</th><th class="c-num">Duración</th><th class="c-num">Productos</th><th class="c-num">Errores</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let h of history">
+              <td>{{ h.fecha | date:'dd/MM/yy HH:mm' }}</td>
+              <td class="c-num">{{ h.duracion != null ? h.duracion + 's' : '—' }}</td>
+              <td class="c-num">{{ h.productos | number }}</td>
+              <td class="c-num"><span [class.err]="h.errores>0">{{ h.errores }}</span></td>
+              <td><span class="hist-st" [class.ok]="h.estado==='success'">{{ h.estado==='success' ? 'Éxito' : 'Error' }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="ti-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>
