@@ -1,0 +1,177 @@
+<div class="sc-page">
+
+  <!-- Header -->
+  <div class="sc-header">
+    <div>
+      <h2>🕷️ Scrapers <span class="sc-chip">Automatización</span></h2>
+      <p>Consola operativa de extracción: visualiza, controla y configura todos los scrapers.</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="sc-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Registrados</span><span class="kpi-n">{{ kpis.registrados }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">Activos</span><span class="kpi-n">{{ kpis.activos }}</span></div>
+    <div class="kpi warn"><span class="kpi-l">Detenidos</span><span class="kpi-n">{{ kpis.detenidos }}</span></div>
+    <div class="kpi bad"><span class="kpi-l">Con error</span><span class="kpi-n">{{ kpis.conError }}</span></div>
+    <div class="kpi"><span class="kpi-l">Productos hoy</span><span class="kpi-n">{{ kpis.productosHoy | number }}</span></div>
+    <div class="kpi"><span class="kpi-l">Tiempo prom.</span><span class="kpi-n">{{ kpis.tiempoPromedio }}s</span></div>
+    <div class="kpi"><span class="kpi-l">Última sync</span><span class="kpi-top">{{ kpis.ultimaSincronizacion ? (kpis.ultimaSincronizacion | date:'dd/MM HH:mm') : '—' }}</span></div>
+  </div>
+
+  <div class="sc-loading" *ngIf="loading && !items.length">Cargando scrapers…</div>
+
+  <!-- Tabla -->
+  <div class="sc-table-wrap" *ngIf="items.length">
+    <table class="sc-table">
+      <thead>
+        <tr>
+          <th class="c-store">Tienda</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th class="c-num">Productos</th>
+          <th class="c-perf">Rendimiento</th>
+          <th class="c-num">Últ. ejec.</th>
+          <th class="c-num">Durac.</th>
+          <th class="c-num">Errores</th>
+          <th>Próxima</th>
+          <th class="c-act">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let s of items">
+          <td class="c-store">
+            <div class="store-cell" (click)="openDetail(s)">
+              <span class="store-logo" [class]="'store-logo ' + storeBadge(s.id)">{{ s.store_name.charAt(0) }}</span>
+              <div class="store-info"><span class="store-name">{{ s.store_name }}</span><span class="store-url">{{ s.scraper_name }}</span></div>
+            </div>
+          </td>
+          <td><span class="ty-badge" [class]="'ty-badge ' + typeClass(s.scraper_type)">{{ s.scraper_type }}</span></td>
+          <td>
+            <span class="st-badge" [class]="'st-badge ' + statusClass(s.status)">
+              <span class="st-dot" [class.spin]="s.status==='Ejecutando'"></span>{{ s.status }}
+            </span>
+          </td>
+          <td class="c-num">{{ s.total_products | number }}</td>
+          <td class="c-perf"><div class="perf-bar"><div class="perf-fill" [style.width.%]="pct(s.total_products)"></div></div></td>
+          <td class="c-num">{{ s.last_execution ? (s.last_execution | date:'dd/MM HH:mm') : '—' }}</td>
+          <td class="c-num">{{ s.average_time ? s.average_time + 's' : '—' }}</td>
+          <td class="c-num"><span [class.err-n]="s.errors > 0">{{ s.errors }}</span></td>
+          <td class="c-sched">{{ s.schedule }}</td>
+          <td class="c-act" (click)="$event.stopPropagation()">
+            <div class="row-actions">
+              <button class="ra run" title="Ejecutar ahora" *ngIf="s.status!=='Ejecutando' && s.status!=='Pausado' && s.status!=='Error'" (click)="run(s)">▶</button>
+              <button class="ra" title="Ejecutando…" *ngIf="s.status==='Ejecutando'" disabled>⏳</button>
+              <button class="ra" title="Pausar" *ngIf="s.status==='Activo'" (click)="pause(s)">⏸</button>
+              <button class="ra run" title="Reanudar" *ngIf="s.status==='Pausado'" (click)="resume(s)">▶</button>
+              <button class="ra retry" title="Reintentar" *ngIf="s.status==='Error'" (click)="retry(s)">🔄</button>
+              <button class="ra" title="Configuración" (click)="openDetail(s,'config')">⚙</button>
+              <button class="ra" title="Ver log / estadísticas" (click)="openDetail(s,'history')">📄</button>
+              <button class="ra" title="Estadísticas" (click)="openDetail(s,'stats')">📊</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ Detalle ══ -->
+  <div class="sc-modal-backdrop" *ngIf="detail" (click)="closeDetail()">
+    <div class="sc-detail" (click)="$event.stopPropagation()">
+      <div class="detail-head">
+        <div class="dh-title">
+          <span class="store-logo lg" [class]="'store-logo lg ' + storeBadge(detail.id)">{{ detail.store_name.charAt(0) }}</span>
+          <div>
+            <h3>{{ detail.store_name }}</h3>
+            <span class="st-badge sm" [class]="'st-badge sm ' + statusClass(detail.status)"><span class="st-dot" [class.spin]="detail.status==='Ejecutando'"></span>{{ detail.status }}</span>
+          </div>
+        </div>
+        <button class="modal-close" (click)="closeDetail()">✕</button>
+      </div>
+
+      <div class="detail-tabs">
+        <button [class.active]="detailTab==='info'" (click)="detailTab='info'">Información</button>
+        <button [class.active]="detailTab==='stats'" (click)="detailTab='stats'">Estadísticas</button>
+        <button [class.active]="detailTab==='history'" (click)="detailTab='history'">Historial</button>
+        <button [class.active]="detailTab==='config'" (click)="detailTab='config'">Configuración</button>
+      </div>
+
+      <div class="detail-body">
+        <!-- INFO -->
+        <div *ngIf="detailTab==='info'" class="info-grid">
+          <div><span>Nombre</span><b>{{ detail.scraper_name }}</b></div>
+          <div><span>Tipo</span><b>{{ detail.scraper_type }}</b></div>
+          <div class="full"><span>URL base</span><b class="mono">{{ detail.base_url }}</b></div>
+          <div><span>Método</span><b>{{ detail.method }}</b></div>
+          <div><span>Frecuencia</span><b>{{ detail.schedule }}</b></div>
+          <div><span>Timeout</span><b>{{ detail.configuration_json.timeout }}s</b></div>
+          <div><span>Reintentos</span><b>{{ detail.configuration_json.max_reintentos }}</b></div>
+          <div><span>Máx. páginas</span><b>{{ detail.configuration_json.max_paginas }}</b></div>
+          <div><span>Delay páginas</span><b>{{ detail.configuration_json.delay_paginas }}s</b></div>
+          <div><span>Fallos consecutivos</span><b [class.err-n]="detail.consecutive_failures>0">{{ detail.consecutive_failures }}</b></div>
+        </div>
+
+        <!-- STATS -->
+        <div *ngIf="detailTab==='stats'" class="stats-grid">
+          <div class="stat-box"><span>Total productos</span><b>{{ detail.total_products | number }}</b></div>
+          <div class="stat-box"><span>Productos nuevos (últ.)</span><b class="green">{{ detail.new_products | number }}</b></div>
+          <div class="stat-box"><span>Actualizados</span><b>{{ detail.updated_products | number }}</b></div>
+          <div class="stat-box"><span>Tiempo promedio</span><b>{{ detail.average_time }}s</b></div>
+          <div class="stat-box"><span>Tiempo máximo</span><b>{{ detail.max_time }}s</b></div>
+          <div class="stat-box"><span>Tiempo mínimo</span><b>{{ detail.min_time }}s</b></div>
+        </div>
+
+        <!-- HISTORY -->
+        <div *ngIf="detailTab==='history'" class="hist-wrap">
+          <div class="hist-empty" *ngIf="!history.length">Sin ejecuciones registradas.</div>
+          <table class="hist-table" *ngIf="history.length">
+            <thead><tr><th>Fecha</th><th class="c-num">Duración</th><th class="c-num">Productos</th><th class="c-num">Errores</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let h of history">
+                <td>{{ h.fecha | date:'dd/MM/yy HH:mm' }}</td>
+                <td class="c-num">{{ h.duracion != null ? h.duracion + 's' : '—' }}</td>
+                <td class="c-num">{{ h.productos | number }}</td>
+                <td class="c-num"><span [class.err-n]="h.errores>0">{{ h.errores }}</span></td>
+                <td><span class="hist-st" [class.ok]="h.estado==='success'" [class.bad]="h.estado!=='success'">{{ h.estado==='success' ? 'Éxito' : 'Error' }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- CONFIG -->
+        <div *ngIf="detailTab==='config'" class="cfg-grid">
+          <div class="fld"><label>Planificador</label>
+            <select [(ngModel)]="cfgForm.schedule"><option *ngFor="let s of schedules" [value]="s">{{ s }}</option></select>
+          </div>
+          <div class="fld"><label>Tipo de scraper</label>
+            <select [(ngModel)]="cfgForm.scraper_type"><option *ngFor="let t of types" [value]="t">{{ t }}</option></select>
+          </div>
+          <div class="fld"><label>Timeout (s)</label><input type="number" [(ngModel)]="cfgForm.timeout" /></div>
+          <div class="fld"><label>Máx. reintentos</label><input type="number" [(ngModel)]="cfgForm.max_reintentos" /></div>
+          <div class="fld"><label>Delay entre páginas (s)</label><input type="number" step="0.1" [(ngModel)]="cfgForm.delay_paginas" /></div>
+          <div class="fld"><label>Máx. páginas</label><input type="number" [(ngModel)]="cfgForm.max_paginas" /></div>
+          <div class="fld"><label>User agent</label><input type="text" [(ngModel)]="cfgForm.user_agent" /></div>
+          <div class="fld"><label>Proxy (preparado)</label><input type="text" [(ngModel)]="cfgForm.proxy" placeholder="host:puerto" /></div>
+          <label class="sw-toggle"><input type="checkbox" [(ngModel)]="cfgForm.headless" /><span class="sw"></span>Modo Headless</label>
+          <label class="sw-toggle"><input type="checkbox" [(ngModel)]="cfgForm.debug" /><span class="sw"></span>Modo Debug</label>
+          <div class="cfg-foot full">
+            <button class="save-btn" (click)="saveConfig()">Guardar configuración</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acciones rápidas del detalle -->
+      <div class="detail-foot">
+        <button class="df-btn run" *ngIf="detail.status!=='Ejecutando'" (click)="run(detail)">▶ Ejecutar ahora</button>
+        <button class="df-btn" *ngIf="detail.status==='Activo'" (click)="pause(detail)">⏸ Pausar</button>
+        <button class="df-btn run" *ngIf="detail.status==='Pausado'" (click)="resume(detail)">▶ Reanudar</button>
+        <button class="df-btn retry" *ngIf="detail.status==='Error'" (click)="retry(detail)">🔄 Reintentar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="sc-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>

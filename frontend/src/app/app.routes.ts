@@ -17,6 +17,7 @@ import { RentabilidadComponent } from './pages/rentabilidad/rentabilidad.compone
 import { PortafolioComponent } from './pages/portafolio/portafolio.component';
 import { TopProductosComponent } from './pages/top-productos/top-productos.component';
 import { PlantillasComponent } from './pages/plantillas/plantillas.component';
+import { ScrapersComponent } from './pages/scrapers/scrapers.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
@@ -43,6 +44,7 @@ export const routes: Routes = [
       { path: 'business-intelligence/portafolio', component: PortafolioComponent,   canActivate: [adminGuard] },
       { path: 'business-intelligence/top-productos', component: TopProductosComponent, canActivate: [adminGuard] },
       { path: 'automatizacion/monitoreo',    component: CentroMonitoreoComponent, canActivate: [adminGuard] },
+      { path: 'automatizacion/scrapers',     component: ScrapersComponent,        canActivate: [adminGuard] },
       { path: 'marketing/tiktok-factory',    component: TiktokFactoryComponent,   canActivate: [adminGuard] },
       { path: 'marketing/supervision',       component: SupervisionComponent,     canActivate: [adminGuard] },
       { path: 'marketing/publicador-ia',     component: PublicadorComponent,      canActivate: [adminGuard] },
