@@ -1,0 +1,168 @@
+<div class="rk-page">
+
+  <!-- Header -->
+  <div class="rk-header">
+    <div>
+      <h2>Ranking IA <span class="rk-chip">PriceHunter Score</span></h2>
+      <p>Las mejores oportunidades detectadas, ordenadas por el PriceHunter Score del Motor IA.</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="rk-kpis" *ngIf="kpis">
+    <div class="kpi accent">
+      <span class="kpi-l">Top oportunidades</span>
+      <span class="kpi-n">{{ kpis.topOportunidades | number }}</span>
+    </div>
+    <div class="kpi ok">
+      <span class="kpi-l">Score prom. Top 10</span>
+      <span class="kpi-n">{{ kpis.scorePromedioTop10 }}</span>
+    </div>
+    <div class="kpi warn">
+      <span class="kpi-l">Mayor margen</span>
+      <span class="kpi-n">{{ kpis.mayorMargen }}%</span>
+    </div>
+    <div class="kpi info">
+      <span class="kpi-l">Mayor descuento</span>
+      <span class="kpi-n">{{ kpis.mayorDescuento }}%</span>
+    </div>
+    <div class="kpi store">
+      <span class="kpi-l">Mejor tienda del día</span>
+      <span class="kpi-n cap">{{ kpis.mejorTienda || '—' }}</span>
+      <span class="kpi-sub" *ngIf="kpis.mejorTiendaScore">score {{ kpis.mejorTiendaScore }}</span>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="rk-toolbar">
+    <div class="tb-group">
+      <label>Ordenar por</label>
+      <select [(ngModel)]="sort" (ngModelChange)="onSortChange()">
+        <option *ngFor="let o of sortOptions" [value]="o.value">{{ o.label }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Tienda</label>
+      <select [(ngModel)]="filterStore" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let s of stores" [value]="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Categoría</label>
+      <select [(ngModel)]="filterCategory" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="rk-loading" *ngIf="loading">Calculando ranking…</div>
+
+  <!-- Tabla -->
+  <div class="rk-table-wrap" *ngIf="!loading && items.length">
+    <table class="rk-table">
+      <thead>
+        <tr>
+          <th class="c-pos">#</th>
+          <th class="c-prod">Producto</th>
+          <th>Tienda</th>
+          <th>Categoría</th>
+          <th class="c-num">Precio actual</th>
+          <th class="c-num">Precio histórico</th>
+          <th class="c-num">Descuento</th>
+          <th class="c-num">Margen</th>
+          <th class="c-num">Score</th>
+          <th>Clasificación</th>
+          <th class="c-act">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let it of items" (click)="verDetalle(it)" [class.top3]="it.posicion <= 3">
+          <td class="c-pos">
+            <span class="pos-badge" [class.gold]="it.posicion === 1" [class.silver]="it.posicion === 2" [class.bronze]="it.posicion === 3">{{ it.posicion }}</span>
+          </td>
+          <td class="c-prod">
+            <div class="prod-cell">
+              <div class="prod-thumb"><img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.name" loading="lazy" /></div>
+              <span class="prod-name">{{ it.name }}</span>
+            </div>
+          </td>
+          <td><span class="badge-store" [class]="'badge-store ' + storeBadge(it.store)">{{ it.store }}</span></td>
+          <td class="c-cat">{{ it.category }}</td>
+          <td class="c-num price-now">{{ fmt(it.currentPrice) }}</td>
+          <td class="c-num price-hist">{{ it.avgMarketPrice ? fmt(it.avgMarketPrice) : '—' }}</td>
+          <td class="c-num"><span class="disc">-{{ it.discountPct }}%</span></td>
+          <td class="c-num margin">{{ it.marginPct }}%</td>
+          <td class="c-num">
+            <span class="score-ring" [class]="'score-ring ' + clasClass(it.clasificacion)">{{ it.score }}</span>
+          </td>
+          <td><span class="clas-badge" [class]="'clas-badge ' + clasClass(it.clasificacion)">{{ it.clasificacionEmoji }}</span></td>
+          <td class="c-act" (click)="$event.stopPropagation()">
+            <div class="row-actions">
+              <button class="ra" title="Ver detalle" (click)="verDetalle(it)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="ra pub" title="Enviar a Publicador IA" (click)="enviarPublicador(it, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+              </button>
+              <button class="ra tk" title="Enviar a TikTok Factory" (click)="enviarTiktok(it, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 12a4 4 0 1 0 4 4V4c.5 2 2 4 5 4"/></svg>
+              </button>
+              <button class="ra fav" [class.active]="isFav(it.id)" title="Favorito" (click)="toggleFav(it, $event)">
+                <svg viewBox="0 0 24 24" [attr.fill]="isFav(it.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rk-empty" *ngIf="!loading && !items.length">No hay oportunidades para mostrar.</div>
+
+  <!-- Detalle -->
+  <div class="rk-detail-backdrop" *ngIf="selected" (click)="closeDetail()">
+    <div class="rk-detail" (click)="$event.stopPropagation()">
+      <button class="detail-close" (click)="closeDetail()">✕</button>
+      <div class="detail-media">
+        <img *ngIf="selected.imageUrl" [src]="selected.imageUrl" [alt]="selected.name" />
+        <div class="detail-noimg" *ngIf="!selected.imageUrl">Sin imagen</div>
+        <span class="pos-badge lg" [class.gold]="selected.posicion === 1" [class.silver]="selected.posicion === 2" [class.bronze]="selected.posicion === 3">#{{ selected.posicion }}</span>
+      </div>
+      <div class="detail-body">
+        <div class="detail-top">
+          <span class="score-ring lg" [class]="'score-ring lg ' + clasClass(selected.clasificacion)">{{ selected.score }}</span>
+          <div>
+            <span class="clas-badge" [class]="'clas-badge ' + clasClass(selected.clasificacion)">{{ selected.clasificacionEmoji }}</span>
+            <p class="detail-reco">{{ selected.recomendacion }}</p>
+          </div>
+        </div>
+        <h3>{{ selected.name }}</h3>
+        <p class="detail-expl">{{ selected.explicacion }}</p>
+        <div class="detail-grid">
+          <div><span>Tienda</span><b class="cap">{{ selected.store }}</b></div>
+          <div><span>Categoría</span><b>{{ selected.category }}</b></div>
+          <div><span>Precio actual</span><b class="green">{{ fmt(selected.currentPrice) }}</b></div>
+          <div><span>Precio histórico</span><b>{{ selected.avgMarketPrice ? fmt(selected.avgMarketPrice) : '—' }}</b></div>
+          <div><span>Descuento</span><b>-{{ selected.discountPct }}%</b></div>
+          <div><span>Margen estimado</span><b>{{ selected.marginPct }}%</b></div>
+        </div>
+        <div class="detail-actions">
+          <button class="da pub" (click)="enviarPublicador(selected)">Enviar a Publicador IA</button>
+          <button class="da tk" (click)="enviarTiktok(selected)">Enviar a TikTok Factory</button>
+          <button class="da fav" [class.active]="isFav(selected.id)" (click)="toggleFav(selected)">
+            {{ isFav(selected.id) ? '★ Favorito' : '☆ Favorito' }}
+          </button>
+          <a *ngIf="selected.url" [href]="selected.url" target="_blank" rel="noopener" class="da link">Ver en tienda ↗</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="rk-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>
