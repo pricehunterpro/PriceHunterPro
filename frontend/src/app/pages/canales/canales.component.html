@@ -1,0 +1,73 @@
+<div class="ca-page">
+
+  <!-- Header -->
+  <div class="ca-header">
+    <div>
+      <h2>📡 Canales <span class="ca-chip">Administración</span></h2>
+      <p>Administra los canales de publicación y sus conexiones. Tokens guardados cifrados.</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="ca-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Total canales</span><span class="kpi-n">{{ kpis.total }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">Conectados</span><span class="kpi-n">{{ kpis.conectados }}</span></div>
+    <div class="kpi"><span class="kpi-l">Desconectados</span><span class="kpi-n">{{ kpis.desconectados }}</span></div>
+    <div class="kpi bad"><span class="kpi-l">Con error / expirado</span><span class="kpi-n">{{ kpis.conError }}</span></div>
+  </div>
+
+  <div class="ca-loading" *ngIf="loading && !items.length">Cargando canales…</div>
+
+  <!-- Grid de canales -->
+  <div class="ca-grid" *ngIf="items.length">
+    <div class="ch-card" *ngFor="let c of items">
+      <div class="ch-top">
+        <span class="ch-icon" [style.background]="c.color + '22'" [style.color]="c.color" [style.borderColor]="c.color + '55'">{{ icon(c.id) }}</span>
+        <div class="ch-info">
+          <span class="ch-name">{{ c.nombre }}</span>
+          <span class="ch-api">{{ c.api }}</span>
+        </div>
+        <span class="e-badge" [class]="'e-badge ' + estadoClass(c.estado)"><span class="e-dot"></span>{{ c.estado }}</span>
+      </div>
+
+      <div class="ch-body">
+        <div class="ch-row"><span>Cuenta conectada</span><b>{{ c.cuenta_conectada || '—' }}</b></div>
+        <div class="ch-row"><span>Token</span><b class="mono">{{ c.tiene_token ? c.token_masked : '— sin token —' }}</b></div>
+        <div class="ch-row"><span>Expiración</span><b>{{ c.expiracion ? (c.expiracion | date:'dd/MM/yyyy') : 'No expira' }}</b></div>
+        <div class="ch-row"><span>Última publicación</span><b>{{ c.ultima_publicacion ? (c.ultima_publicacion | date:'dd/MM HH:mm') : 'Nunca' }}</b></div>
+      </div>
+
+      <div class="ch-actions">
+        <button class="ch-btn primary" *ngIf="c.estado!=='Conectado'" (click)="openConnect(c,'connect')">🔌 Conectar</button>
+        <button class="ch-btn" *ngIf="c.estado==='Conectado'" (click)="test(c)">✓ Probar</button>
+        <button class="ch-btn" *ngIf="c.tiene_token" (click)="openConnect(c,'update')">🔄 Token</button>
+        <button class="ch-btn danger" *ngIf="c.estado==='Conectado'" (click)="disconnect(c)">⊘ Desconectar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Modal conectar / token ══ -->
+  <div class="ca-modal-backdrop" *ngIf="showConnect && target" (click)="closeConnect()">
+    <div class="ca-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h3><span class="ch-icon sm" [style.background]="target.color + '22'" [style.color]="target.color">{{ icon(target.id) }}</span> {{ connectMode==='update' ? 'Actualizar token' : 'Conectar' }} · {{ target.nombre }}</h3>
+        <button class="modal-close" (click)="closeConnect()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="api-hint">Integración: <b>{{ target.api }}</b>. El token se guarda cifrado.</p>
+        <div class="fld"><label>Token / API Key</label><input type="text" [(ngModel)]="tokenInput" placeholder="Pega aquí el token del canal" /></div>
+        <div class="fld" *ngIf="connectMode==='connect'"><label>Cuenta conectada</label><input type="text" [(ngModel)]="cuentaInput" placeholder="@usuario / nombre de la cuenta" /></div>
+        <div class="fld" *ngIf="connectMode==='connect'"><label>Expiración (opcional)</label><input type="date" [(ngModel)]="expInput" /></div>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" (click)="closeConnect()">Cancelar</button>
+        <button class="save-btn" (click)="saveConnect()" [disabled]="saving">{{ saving ? 'Guardando…' : (connectMode==='update' ? 'Actualizar' : 'Conectar') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="ca-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>
