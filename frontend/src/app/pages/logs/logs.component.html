@@ -1,0 +1,119 @@
+<div class="lg-page">
+
+  <!-- Header -->
+  <div class="lg-header">
+    <div>
+      <h2>📋 Logs <span class="lg-chip">Automatización</span></h2>
+      <p>Auditoría y diagnóstico: eventos, errores y actividad técnica del sistema.</p>
+    </div>
+    <div class="lg-header-actions">
+      <button class="ghost-btn" (click)="download()">⬇ CSV</button>
+      <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="lg-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Logs totales</span><span class="kpi-n">{{ kpis.total }}</span></div>
+    <div class="kpi crit"><span class="kpi-l">Errores críticos</span><span class="kpi-n">{{ kpis.criticos }}</span></div>
+    <div class="kpi warn"><span class="kpi-l">Warnings</span><span class="kpi-n">{{ kpis.warnings }}</span></div>
+    <div class="kpi bad"><span class="kpi-l">Errores 24h</span><span class="kpi-n">{{ kpis.errores24h }}</span></div>
+    <div class="kpi"><span class="kpi-l">Módulo con más errores</span><span class="kpi-top">{{ kpis.moduloConMasErrores }}</span></div>
+    <div class="kpi"><span class="kpi-l">Último error</span><span class="kpi-top sm">{{ kpis.ultimoError }}</span></div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="lg-filters">
+    <select [(ngModel)]="fLevel" (ngModelChange)="load()"><option value="">Nivel</option><option *ngFor="let n of niveles" [value]="n">{{ n }}</option></select>
+    <select [(ngModel)]="fModule" (ngModelChange)="load()"><option value="">Módulo</option><option *ngFor="let m of modulos" [value]="m">{{ m }}</option></select>
+    <select [(ngModel)]="fType" (ngModelChange)="load()"><option value="">Tipo</option><option *ngFor="let t of tipos" [value]="t">{{ t }}</option></select>
+    <select [(ngModel)]="fStatus" (ngModelChange)="load()"><option value="">Estado</option><option *ngFor="let e of estados" [value]="e">{{ e }}</option></select>
+    <input class="lg-search" type="text" [(ngModel)]="q" (keyup.enter)="load()" placeholder="Buscar en mensajes…" />
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="lg-loading" *ngIf="loading && !items.length">Cargando logs…</div>
+
+  <!-- Tabla -->
+  <div class="lg-table-wrap" *ngIf="items.length">
+    <table class="lg-table">
+      <thead>
+        <tr><th>Fecha</th><th>Nivel</th><th>Módulo</th><th>Tipo</th><th class="c-msg">Mensaje</th><th>Usuario</th><th>Estado</th><th class="c-act">Acción</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let l of items" (click)="openDetail(l)" [class.row-crit]="l.level==='Critical'">
+          <td class="mono sm">{{ l.created_at | date:'dd/MM HH:mm' }}</td>
+          <td><span class="lv-badge" [class]="'lv-badge ' + levelClass(l.level)">{{ l.level }}</span></td>
+          <td>{{ l.module }}</td>
+          <td class="muted">{{ l.log_type }}</td>
+          <td class="c-msg"><span class="msg-txt">{{ l.message }}</span><span class="rel-tag" *ngIf="l.related_scraper_id">🕷 {{ l.related_scraper_id }}</span><span class="rel-tag" *ngIf="l.related_process_id">⚙ proc</span></td>
+          <td class="mono sm">{{ l.user_id }}</td>
+          <td><span class="ss-badge" [class]="'ss-badge ' + statusClass(l.status)">{{ l.status }}</span></td>
+          <td class="c-act" (click)="$event.stopPropagation()">
+            <div class="row-actions">
+              <button class="ra" title="Ver detalle" (click)="openDetail(l)">👁</button>
+              <button class="ra" title="Copiar error" (click)="copyError(l)">⧉</button>
+              <button class="ra ok" title="Marcar revisado" *ngIf="l.status==='Nuevo'" (click)="setStatus(l,'Revisado')">✓</button>
+              <button class="ra retry" title="Reintentar relacionado" *ngIf="l.related_scraper_id || l.related_process_id" (click)="retryRelated(l,$event)">🔄</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ Drawer detalle ══ -->
+  <div class="lg-drawer-backdrop" *ngIf="detail" (click)="closeDetail()">
+    <div class="lg-drawer" (click)="$event.stopPropagation()">
+      <div class="drawer-head">
+        <div>
+          <span class="lv-badge" [class]="'lv-badge ' + levelClass(detail.level)">{{ detail.level }}</span>
+          <h3>{{ detail.log_type }}</h3>
+          <span class="drawer-sub">{{ detail.module }} · {{ short(detail.id) }}</span>
+        </div>
+        <button class="modal-close" (click)="closeDetail()">✕</button>
+      </div>
+
+      <div class="drawer-body">
+        <div class="msg-box">{{ detail.message }}</div>
+
+        <div class="info-grid">
+          <div><span>ID</span><b class="mono">{{ detail.id }}</b></div>
+          <div><span>Fecha</span><b>{{ detail.created_at | date:'dd/MM/yyyy HH:mm:ss' }}</b></div>
+          <div><span>Nivel</span><b>{{ detail.level }}</b></div>
+          <div><span>Tipo</span><b>{{ detail.log_type }}</b></div>
+          <div><span>Módulo</span><b>{{ detail.module }}</b></div>
+          <div><span>Estado</span><b><span class="ss-badge" [class]="'ss-badge ' + statusClass(detail.status)">{{ detail.status }}</span></b></div>
+          <div><span>Usuario</span><b>{{ detail.user_id || '—' }}</b></div>
+          <div><span>IP</span><b class="mono">{{ detail.ip_address || '—' }}</b></div>
+          <div *ngIf="detail.related_scraper_id"><span>Scraper relacionado</span><b class="link" (click)="openScraper()">🕷 {{ detail.related_scraper_id }} ↗</b></div>
+          <div *ngIf="detail.related_process_id"><span>Proceso relacionado</span><b class="link" (click)="openProcess()">⚙ {{ short(detail.related_process_id) }} ↗</b></div>
+        </div>
+
+        <!-- Stack trace (colapsado por defecto) -->
+        <div class="stack-wrap" *ngIf="detail.stack_trace">
+          <button class="stack-toggle" (click)="showStack = !showStack">{{ showStack ? '▾' : '▸' }} Stack trace</button>
+          <pre class="stack-pre" *ngIf="showStack">{{ detail.stack_trace }}</pre>
+        </div>
+
+        <!-- Payload -->
+        <div class="payload-wrap" *ngIf="detail.payload_json">
+          <span class="pw-label">Payload relacionado</span>
+          <pre class="stack-pre">{{ json(detail.payload_json) }}</pre>
+        </div>
+      </div>
+
+      <div class="drawer-foot">
+        <button class="df-btn" (click)="copyError(detail)">⧉ Copiar</button>
+        <button class="df-btn ok" *ngIf="detail.status!=='Revisado'" (click)="setStatus(detail,'Revisado')">✓ Revisado</button>
+        <button class="df-btn ok" *ngIf="detail.status!=='Resuelto'" (click)="setStatus(detail,'Resuelto')">Resuelto</button>
+        <button class="df-btn" *ngIf="detail.status!=='Ignorado'" (click)="setStatus(detail,'Ignorado')">Ignorar</button>
+        <button class="df-btn retry" *ngIf="detail.related_scraper_id || detail.related_process_id" (click)="retryRelated(detail)">🔄 Reintentar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="lg-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>
