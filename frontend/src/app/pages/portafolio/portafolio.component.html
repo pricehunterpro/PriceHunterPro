@@ -1,0 +1,164 @@
+<div class="pf-page">
+
+  <!-- Header -->
+  <div class="pf-header">
+    <div>
+      <h2>📦 Portafolio <span class="pf-chip">Business Intelligence</span></h2>
+      <p>Registra y controla tus productos comprados para reventa.</p>
+    </div>
+    <button class="add-btn" (click)="openAdd()">＋ Agregar al portafolio</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="pf-kpis" *ngIf="kpis">
+    <div class="kpi info"><span class="kpi-l">Inversión total</span><span class="kpi-n">{{ money(kpis.inversionTotal) }}</span></div>
+    <div class="kpi"><span class="kpi-l">Ganancia estimada</span><span class="kpi-n">{{ money(kpis.gananciaEstimada) }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">Ganancia real</span><span class="kpi-n">{{ money(kpis.gananciaReal) }}</span></div>
+    <div class="kpi"><span class="kpi-l">En portafolio</span><span class="kpi-n">{{ kpis.productosEnPortafolio }}</span></div>
+    <div class="kpi accent"><span class="kpi-l">Vendidos</span><span class="kpi-n">{{ kpis.productosVendidos }}</span></div>
+    <div class="kpi warn"><span class="kpi-l">ROI promedio</span><span class="kpi-n">{{ kpis.roiPromedio }}%</span></div>
+  </div>
+
+  <!-- Filtros por estado -->
+  <div class="pf-filters">
+    <button class="fchip" [class.active]="filterStatus===''" (click)="setFilter('')">Todos</button>
+    <button class="fchip" *ngFor="let e of estados" [class]="'fchip ' + statusClass(e) + (filterStatus===e ? ' active' : '')" (click)="setFilter(e)">
+      {{ e }} <b *ngIf="porEstado[e]">{{ porEstado[e] }}</b>
+    </button>
+  </div>
+
+  <div class="pf-loading" *ngIf="loading">Cargando portafolio…</div>
+
+  <!-- Empty -->
+  <div class="pf-empty" *ngIf="!loading && !items.length">
+    <p>Tu portafolio está vacío.</p>
+    <button class="add-btn" (click)="openAdd()">＋ Agregar tu primer producto</button>
+  </div>
+
+  <!-- Tabla -->
+  <div class="pf-table-wrap" *ngIf="!loading && items.length">
+    <table class="pf-table">
+      <thead>
+        <tr>
+          <th class="c-prod">Producto</th>
+          <th>Tienda</th>
+          <th>Categoría</th>
+          <th class="c-num">Cant.</th>
+          <th class="c-num">P. compra</th>
+          <th class="c-num">Costo total</th>
+          <th class="c-num">P. venta sug.</th>
+          <th class="c-num">Ganancia est.</th>
+          <th class="c-num">ROI</th>
+          <th>Estado</th>
+          <th class="c-act">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let it of items">
+          <td class="c-prod" (click)="verDetalle(it)">
+            <div class="prod-cell">
+              <div class="prod-thumb"><img *ngIf="it.image_url" [src]="it.image_url" [alt]="it.product_name" loading="lazy" /></div>
+              <span class="prod-name">{{ it.product_name }}</span>
+            </div>
+          </td>
+          <td><span class="badge-store" [class]="'badge-store ' + storeBadge(it.store)" *ngIf="it.store">{{ it.store }}</span><span *ngIf="!it.store" class="muted">—</span></td>
+          <td class="c-cat">{{ it.category }}</td>
+          <td class="c-num">{{ it.quantity }}</td>
+          <td class="c-num">{{ money(it.purchase_price) }}</td>
+          <td class="c-num">{{ money(it.total_cost) }}</td>
+          <td class="c-num p-venta">{{ money(it.suggested_sale_price) }}</td>
+          <td class="c-num p-gan">{{ money(it.estimated_profit) }}</td>
+          <td class="c-num roi">{{ it.roi }}%</td>
+          <td><span class="st-badge" [class]="'st-badge ' + statusClass(it.status)">{{ it.status }}</span></td>
+          <td class="c-act">
+            <div class="row-actions">
+              <button class="ra" title="Ver detalle" (click)="verDetalle(it)">👁</button>
+              <button class="ra" title="Editar" (click)="openEdit(it)">✎</button>
+              <button class="ra sell" title="Marcar como vendido" *ngIf="it.status !== 'Vendido' && it.status !== 'Cancelado'" (click)="markSold(it)">💵</button>
+              <button class="ra cancel" title="Cancelar" *ngIf="it.status !== 'Cancelado' && it.status !== 'Vendido'" (click)="cancelItem(it)">⊘</button>
+              <button class="ra del" title="Eliminar" (click)="remove(it)">🗑</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ Modal Form (agregar / editar) ══ -->
+  <div class="pf-modal-backdrop" *ngIf="showForm" (click)="closeForm()">
+    <div class="pf-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h3>{{ editing ? 'Editar producto' : 'Agregar al portafolio' }}</h3>
+        <button class="modal-close" (click)="closeForm()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="fld full">
+          <label>Producto *</label>
+          <input type="text" [(ngModel)]="form.product_name" placeholder="Nombre del producto" />
+        </div>
+        <div class="fld"><label>Tienda</label><input type="text" [(ngModel)]="form.store" placeholder="oechsle, ripley…" /></div>
+        <div class="fld"><label>Categoría</label><input type="text" [(ngModel)]="form.category" placeholder="Categoría" /></div>
+        <div class="fld"><label>Cantidad</label><input type="number" min="1" [(ngModel)]="form.quantity" /></div>
+        <div class="fld"><label>Precio compra (S/)</label><input type="number" min="0" step="0.01" [(ngModel)]="form.purchase_price" /></div>
+        <div class="fld"><label>Precio venta sugerido (S/)</label><input type="number" min="0" step="0.01" [(ngModel)]="form.suggested_sale_price" /></div>
+        <div class="fld"><label>Estado</label>
+          <select [(ngModel)]="form.status">
+            <option *ngFor="let e of estados" [value]="e">{{ e }}</option>
+          </select>
+        </div>
+        <div class="fld" *ngIf="form.status === 'Vendido'">
+          <label>Precio venta final (S/)</label>
+          <input type="number" min="0" step="0.01" [(ngModel)]="form.final_sale_price" />
+        </div>
+        <div class="fld full"><label>Notas</label><textarea rows="2" [(ngModel)]="form.notes" placeholder="Notas u observaciones"></textarea></div>
+
+        <!-- Preview -->
+        <div class="form-preview full">
+          <div><span>Costo total</span><b>{{ money(fTotal) }}</b></div>
+          <div><span>Ganancia estimada</span><b class="green">{{ money(fProfit) }}</b></div>
+          <div><span>ROI</span><b class="green">{{ fRoi }}%</b></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" (click)="closeForm()">Cancelar</button>
+        <button class="save-btn" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando…' : (editing ? 'Guardar cambios' : 'Agregar') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Detalle ══ -->
+  <div class="pf-modal-backdrop" *ngIf="detail" (click)="closeDetail()">
+    <div class="pf-modal detail" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h3>{{ detail.product_name }}</h3>
+        <button class="modal-close" (click)="closeDetail()">✕</button>
+      </div>
+      <div class="modal-body detail-body">
+        <span class="st-badge lg" [class]="'st-badge lg ' + statusClass(detail.status)">{{ detail.status }}</span>
+        <div class="detail-grid">
+          <div><span>Tienda</span><b class="cap">{{ detail.store || '—' }}</b></div>
+          <div><span>Categoría</span><b>{{ detail.category }}</b></div>
+          <div><span>Cantidad</span><b>{{ detail.quantity }}</b></div>
+          <div><span>Precio compra</span><b>{{ money(detail.purchase_price) }}</b></div>
+          <div><span>Costo total</span><b>{{ money(detail.total_cost) }}</b></div>
+          <div><span>Precio venta sug.</span><b class="blue">{{ money(detail.suggested_sale_price) }}</b></div>
+          <div><span>Ganancia estimada</span><b class="green">{{ money(detail.estimated_profit) }}</b></div>
+          <div *ngIf="detail.final_sale_price"><span>Precio venta final</span><b>{{ money(detail.final_sale_price) }}</b></div>
+          <div *ngIf="detail.status === 'Vendido'"><span>Ganancia real</span><b class="green">{{ money(detail.real_profit) }}</b></div>
+          <div><span>ROI</span><b class="green">{{ detail.roi }}%</b></div>
+          <div><span>Fecha compra</span><b>{{ detail.purchase_date | date:'dd/MM/yyyy' }}</b></div>
+          <div *ngIf="detail.sale_date"><span>Fecha venta</span><b>{{ detail.sale_date | date:'dd/MM/yyyy' }}</b></div>
+        </div>
+        <div class="detail-notes" *ngIf="detail.notes"><span>Notas</span><p>{{ detail.notes }}</p></div>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" (click)="openEdit(detail); closeDetail()">Editar</button>
+        <button class="save-btn" (click)="closeDetail()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="pf-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>
