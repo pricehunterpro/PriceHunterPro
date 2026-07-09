@@ -1,0 +1,156 @@
+<div class="tp-page">
+
+  <!-- Header -->
+  <div class="tp-header">
+    <div>
+      <h2>🏆 Top Productos <span class="tp-chip">Business Intelligence</span></h2>
+      <p>Ranking inteligente de los productos con mejor desempeño (Score, ROI, popularidad).</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="tp-kpis" *ngIf="kpis">
+    <div class="kpi top">
+      <span class="kpi-l">Producto top del día</span>
+      <span class="kpi-top-name">{{ kpis.productoTopDelDia }}</span>
+      <span class="kpi-sub">{{ kpis.productoTopStore }} · score {{ kpis.productoTopScore }}</span>
+    </div>
+    <div class="kpi ok"><span class="kpi-l">Mejor score</span><span class="kpi-n">{{ kpis.mejorScore }}</span></div>
+    <div class="kpi accent"><span class="kpi-l">Mayor ROI</span><span class="kpi-n">{{ kpis.mayorRoi }}%</span></div>
+    <div class="kpi warn"><span class="kpi-l">Mayor descuento</span><span class="kpi-n">{{ kpis.mayorDescuento }}%</span></div>
+    <div class="kpi info"><span class="kpi-l">Categoría dominante</span><span class="kpi-cat">{{ kpis.categoriaDominante }}</span></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="tp-toolbar">
+    <div class="period-tabs">
+      <button *ngFor="let p of periods" [class.active]="period===p.value" (click)="onPeriodChange(p.value)">{{ p.label }}</button>
+    </div>
+    <div class="tb-group">
+      <label>Ordenar</label>
+      <select [(ngModel)]="sort" (ngModelChange)="onFilterChange()">
+        <option *ngFor="let o of sortOptions" [value]="o.value">{{ o.label }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Tienda</label>
+      <select [(ngModel)]="fStore" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let s of storesList" [value]="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Categoría</label>
+      <select [(ngModel)]="fCategory" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let c of categoriesList" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Score mín: {{ fMinScore }}</label>
+      <input type="range" min="0" max="100" step="5" [(ngModel)]="fMinScore" (change)="onFilterChange()" />
+    </div>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="tp-loading" *ngIf="loading">Calculando ranking…</div>
+
+  <!-- Tabla -->
+  <div class="tp-table-wrap" *ngIf="!loading && items.length">
+    <table class="tp-table">
+      <thead>
+        <tr>
+          <th class="c-rank">#</th>
+          <th class="c-prod">Producto</th>
+          <th>Tienda</th>
+          <th>Categoría</th>
+          <th class="c-num">P. actual</th>
+          <th class="c-num">P. histórico</th>
+          <th class="c-num">Desc.</th>
+          <th class="c-num">ROI</th>
+          <th class="c-num">Score</th>
+          <th class="c-num">Popularidad</th>
+          <th class="c-act">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let it of items" (click)="verDetalle(it)" [class.top3]="it.ranking <= 3">
+          <td class="c-rank"><span class="rank-badge" [class.gold]="it.ranking===1" [class.silver]="it.ranking===2" [class.bronze]="it.ranking===3">{{ it.ranking }}</span></td>
+          <td class="c-prod">
+            <div class="prod-cell">
+              <div class="prod-thumb"><img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.name" loading="lazy" /></div>
+              <span class="prod-name">{{ it.name }}</span>
+            </div>
+          </td>
+          <td><span class="badge-store" [class]="'badge-store ' + storeBadge(it.store)">{{ it.store }}</span></td>
+          <td class="c-cat">{{ it.category }}</td>
+          <td class="c-num price-now">{{ money(it.currentPrice) }}</td>
+          <td class="c-num price-hist">{{ it.avgMarketPrice ? money(it.avgMarketPrice) : '—' }}</td>
+          <td class="c-num"><span class="disc">-{{ it.discountPct }}%</span></td>
+          <td class="c-num"><span class="roi-badge" [class]="'roi-badge ' + roiClass(it.roi)">{{ it.roi }}%</span></td>
+          <td class="c-num"><span class="score-ring" [class]="'score-ring ' + clasClass(it.clasificacion)">{{ it.score }}</span></td>
+          <td class="c-num">
+            <div class="pop-cell">
+              <div class="pop-bar"><div class="pop-fill" [style.width.%]="it.popularidad"></div></div>
+              <span class="pop-val">{{ it.popularidad }}</span>
+            </div>
+          </td>
+          <td class="c-act" (click)="$event.stopPropagation()">
+            <div class="row-actions">
+              <button class="ra" title="Ver detalle" (click)="verDetalle(it)">👁</button>
+              <button class="ra pub" title="Enviar a Publicador IA" (click)="enviarPublicador(it, $event)">✈</button>
+              <button class="ra tk" title="Enviar a TikTok Factory" (click)="enviarTiktok(it, $event)">🎵</button>
+              <button class="ra pf" title="Agregar a Portafolio" (click)="agregarPortafolio(it, $event)">＋</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="tp-empty" *ngIf="!loading && !items.length">No hay productos para mostrar.</div>
+
+  <!-- Detalle -->
+  <div class="tp-detail-backdrop" *ngIf="selected" (click)="closeDetail()">
+    <div class="tp-detail" (click)="$event.stopPropagation()">
+      <button class="detail-close" (click)="closeDetail()">✕</button>
+      <div class="detail-media">
+        <img *ngIf="selected.imageUrl" [src]="selected.imageUrl" [alt]="selected.name" />
+        <div class="detail-noimg" *ngIf="!selected.imageUrl">Sin imagen</div>
+        <span class="rank-badge lg" [class.gold]="selected.ranking===1" [class.silver]="selected.ranking===2" [class.bronze]="selected.ranking===3">#{{ selected.ranking }}</span>
+      </div>
+      <div class="detail-body">
+        <div class="detail-top">
+          <span class="score-ring lg" [class]="'score-ring lg ' + clasClass(selected.clasificacion)">{{ selected.score }}</span>
+          <div>
+            <span class="clas-badge" [class]="'clas-badge ' + clasClass(selected.clasificacion)">{{ selected.clasificacionEmoji }}</span>
+            <p class="detail-reco">{{ selected.recomendacion }}</p>
+          </div>
+        </div>
+        <h3>{{ selected.name }}</h3>
+        <div class="detail-grid">
+          <div><span>Tienda</span><b class="cap">{{ selected.store }}</b></div>
+          <div><span>Categoría</span><b>{{ selected.category }}</b></div>
+          <div><span>Precio actual</span><b class="green">{{ money(selected.currentPrice) }}</b></div>
+          <div><span>Precio histórico</span><b>{{ selected.avgMarketPrice ? money(selected.avgMarketPrice) : '—' }}</b></div>
+          <div><span>Descuento</span><b>-{{ selected.discountPct }}%</b></div>
+          <div><span>ROI</span><b class="green">{{ selected.roi }}%</b></div>
+          <div><span>Popularidad</span><b>{{ selected.popularidad }}</b></div>
+          <div><span>Frecuencia</span><b>×{{ selected.frecuencia }}</b></div>
+          <div><span>Clicks estimados</span><b class="blue">{{ selected.clicksEstimados | number }} <span class="est">est</span></b></div>
+        </div>
+        <div class="detail-actions">
+          <button class="da pub" (click)="enviarPublicador(selected)">Publicador IA</button>
+          <button class="da tk" (click)="enviarTiktok(selected)">TikTok Factory</button>
+          <button class="da pf" (click)="agregarPortafolio(selected)">＋ Portafolio</button>
+          <a *ngIf="selected.url" [href]="selected.url" target="_blank" rel="noopener" class="da link">Ver en tienda ↗</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="tp-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>
