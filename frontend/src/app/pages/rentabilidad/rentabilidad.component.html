@@ -1,0 +1,109 @@
+<div class="rt-page">
+
+  <!-- Header -->
+  <div class="rt-header">
+    <div>
+      <h2>💰 Rentabilidad <span class="rt-chip">Business Intelligence</span></h2>
+      <p>Qué productos tienen mayor potencial de reventa, según su ROI y el PriceHunter Score.</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="rt-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Ganancia potencial total</span><span class="kpi-n">{{ money(kpis.gananciaPotencialTotal) }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">ROI promedio</span><span class="kpi-n">{{ kpis.roiPromedio }}%</span></div>
+    <div class="kpi"><span class="kpi-l">Productos rentables</span><span class="kpi-n">{{ kpis.productosRentables | number }}</span></div>
+    <div class="kpi info"><span class="kpi-l">Capital requerido</span><span class="kpi-n">{{ money(kpis.capitalRequerido) }}</span></div>
+    <div class="kpi warn"><span class="kpi-l">Mayor margen detectado</span><span class="kpi-n">{{ kpis.mayorMargenDetectado }}%</span></div>
+  </div>
+
+  <!-- Distribución de clasificación (barra + filtro) -->
+  <div class="rt-distrib" *ngIf="clasif">
+    <button class="dist-seg alta"  [class.active]="fClas==='Alta rentabilidad'"  (click)="toggleClas('Alta rentabilidad')"  [style.flex]="(clasif.alta || 0.02)">
+      <span>Alta</span><b>{{ clasif.alta }}</b>
+    </button>
+    <button class="dist-seg buena" [class.active]="fClas==='Buena rentabilidad'" (click)="toggleClas('Buena rentabilidad')" [style.flex]="(clasif.buena || 0.02)">
+      <span>Buena</span><b>{{ clasif.buena }}</b>
+    </button>
+    <button class="dist-seg media" [class.active]="fClas==='Rentabilidad media'" (click)="toggleClas('Rentabilidad media')" [style.flex]="(clasif.media || 0.02)">
+      <span>Media</span><b>{{ clasif.media }}</b>
+    </button>
+    <button class="dist-seg baja"  [class.active]="fClas==='Baja rentabilidad'"  (click)="toggleClas('Baja rentabilidad')"  [style.flex]="(clasif.baja || 0.02)">
+      <span>Baja</span><b>{{ clasif.baja }}</b>
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="rt-toolbar">
+    <div class="tb-group">
+      <label>Ordenar por</label>
+      <select [(ngModel)]="sort" (ngModelChange)="onFilterChange()">
+        <option *ngFor="let o of sortOptions" [value]="o.value">{{ o.label }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Tienda</label>
+      <select [(ngModel)]="fStore" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let s of storesList" [value]="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Categoría</label>
+      <select [(ngModel)]="fCategory" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let c of categoriesList" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Score mínimo: {{ fMinScore }}</label>
+      <input type="range" min="0" max="100" step="5" [(ngModel)]="fMinScore" (change)="onFilterChange()" />
+    </div>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="rt-loading" *ngIf="loading">Calculando rentabilidad…</div>
+
+  <!-- Tabla -->
+  <div class="rt-table-wrap" *ngIf="!loading && items.length">
+    <table class="rt-table">
+      <thead>
+        <tr>
+          <th class="c-prod">Producto</th>
+          <th>Tienda</th>
+          <th>Categoría</th>
+          <th class="c-num">P. compra</th>
+          <th class="c-num">P. venta sug.</th>
+          <th class="c-num">Ganancia</th>
+          <th class="c-num">ROI</th>
+          <th class="c-num">Margen</th>
+          <th class="c-num">Score</th>
+          <th>Recomendación</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let it of items" [class]="'row-' + clasClass(it.clasificacion)">
+          <td class="c-prod">
+            <div class="prod-cell">
+              <div class="prod-thumb"><img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.name" loading="lazy" /></div>
+              <span class="prod-name">{{ it.name }}</span>
+            </div>
+          </td>
+          <td><span class="badge-store" [class]="'badge-store ' + storeBadge(it.store)">{{ it.store }}</span></td>
+          <td class="c-cat">{{ it.category }}</td>
+          <td class="c-num">{{ money(it.precioCompra) }}</td>
+          <td class="c-num p-venta">{{ money(it.precioSugerido) }}</td>
+          <td class="c-num p-gan">+{{ money(it.ganancia) }}</td>
+          <td class="c-num"><span class="roi-badge" [class]="'roi-badge ' + clasClass(it.clasificacion)">{{ it.roi }}%</span></td>
+          <td class="c-num margin">{{ it.margen }}%</td>
+          <td class="c-num"><span class="score-pill">{{ it.score }}</span></td>
+          <td><span class="reco" [class]="'reco ' + clasClass(it.clasificacion)">{{ it.recomendacion }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rt-empty" *ngIf="!loading && !items.length">No hay productos que coincidan con los filtros.</div>
+
+</div>
