@@ -1,0 +1,142 @@
+<div class="pr-page">
+
+  <!-- Header -->
+  <div class="pr-header">
+    <div>
+      <h2>⚙️ Procesos <span class="pr-chip">Automatización</span></h2>
+      <p>Monitorea y administra las tareas automáticas (Celery, jobs, scraping, IA, publicaciones).</p>
+    </div>
+    <button class="ghost-btn" (click)="load()">↻ Actualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="pr-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Totales</span><span class="kpi-n">{{ kpis.totales }}</span></div>
+    <div class="kpi info"><span class="kpi-l">En ejecución</span><span class="kpi-n">{{ kpis.enEjecucion }}</span></div>
+    <div class="kpi"><span class="kpi-l">Pendientes</span><span class="kpi-n">{{ kpis.pendientes }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">Completados</span><span class="kpi-n">{{ kpis.completados }}</span></div>
+    <div class="kpi bad"><span class="kpi-l">Fallidos</span><span class="kpi-n">{{ kpis.fallidos }}</span></div>
+    <div class="kpi"><span class="kpi-l">Tiempo prom.</span><span class="kpi-n">{{ kpis.tiempoPromedio }}s</span></div>
+    <div class="kpi warn"><span class="kpi-l">Cola activa</span><span class="kpi-n">{{ kpis.colaActiva }}</span></div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="pr-filters">
+    <select [(ngModel)]="fEstado" (ngModelChange)="load()"><option value="">Estado</option><option *ngFor="let e of estados" [value]="e">{{ e }}</option></select>
+    <select [(ngModel)]="fTipo" (ngModelChange)="load()"><option value="">Tipo</option><option *ngFor="let t of tipos" [value]="t">{{ t }}</option></select>
+    <select [(ngModel)]="fModule" (ngModelChange)="load()"><option value="">Módulo</option><option *ngFor="let m of modules" [value]="m">{{ m }}</option></select>
+    <select [(ngModel)]="fWorker" (ngModelChange)="load()"><option value="">Worker</option><option *ngFor="let w of workers" [value]="w">{{ w }}</option></select>
+    <select [(ngModel)]="fPrioridad" (ngModelChange)="load()"><option value="">Prioridad</option><option *ngFor="let p of prioridades" [value]="p">{{ p }}</option></select>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="pr-loading" *ngIf="loading && !items.length">Cargando procesos…</div>
+
+  <!-- Tabla -->
+  <div class="pr-table-wrap" *ngIf="items.length">
+    <table class="pr-table">
+      <thead>
+        <tr>
+          <th>ID</th><th>Tipo</th><th>Módulo</th><th>Estado</th><th>Prioridad</th>
+          <th class="c-num">Inicio</th><th class="c-num">Duración</th><th class="c-num">Intentos</th>
+          <th>Worker</th><th>Resultado</th><th class="c-act">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let p of items" (click)="openDetail(p)">
+          <td class="mono">{{ shortId(p.id) }}</td>
+          <td class="c-type">{{ p.process_type }}</td>
+          <td class="muted">{{ p.module }}</td>
+          <td><span class="st-badge" [class]="'st-badge ' + statusClass(p.status)"><span class="st-dot" [class.spin]="p.status==='Ejecutando'"></span>{{ p.status }}</span></td>
+          <td><span class="pr-prio" [class]="'pr-prio ' + prioClass(p.priority)">{{ p.priority }}</span></td>
+          <td class="c-num">{{ p.started_at ? (p.started_at | date:'HH:mm') : '—' }}</td>
+          <td class="c-num">{{ p.duration_seconds != null ? p.duration_seconds + 's' : '—' }}</td>
+          <td class="c-num"><span [class.err-n]="p.retry_count>0">{{ p.retry_count }}/{{ p.max_retries }}</span></td>
+          <td class="mono sm">{{ p.worker_name || '—' }}</td>
+          <td class="c-result"><span *ngIf="p.result_json" class="res-ok">✓ OK</span><span *ngIf="p.error_message" class="res-err" [title]="p.error_message">✕ Error</span><span *ngIf="!p.result_json && !p.error_message" class="muted">—</span></td>
+          <td class="c-act" (click)="$event.stopPropagation()">
+            <div class="row-actions">
+              <button class="ra" title="Ver detalle" (click)="openDetail(p)">👁</button>
+              <button class="ra" title="Ver log" (click)="openDetail(p,'log')">📄</button>
+              <button class="ra retry" title="Reintentar" *ngIf="p.status==='Fallido' || p.status==='Cancelado'" (click)="retry(p)">🔄</button>
+              <button class="ra" title="Pausar" *ngIf="p.status==='Ejecutando'" (click)="pause(p)">⏸</button>
+              <button class="ra cancel" title="Cancelar" *ngIf="p.status==='Ejecutando' || p.status==='Pendiente' || p.status==='Reintentando'" (click)="cancel(p)">⊘</button>
+              <button class="ra" title="Ejecutar nuevamente" (click)="runAgain(p)">↻</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ Drawer detalle ══ -->
+  <div class="pr-drawer-backdrop" *ngIf="detail" (click)="closeDetail()">
+    <div class="pr-drawer" (click)="$event.stopPropagation()">
+      <div class="drawer-head">
+        <div>
+          <span class="st-badge" [class]="'st-badge ' + statusClass(detail.status)"><span class="st-dot" [class.spin]="detail.status==='Ejecutando'"></span>{{ detail.status }}</span>
+          <h3>{{ detail.process_type }}</h3>
+          <span class="drawer-sub">{{ detail.module }} · {{ detail.task_id }}</span>
+        </div>
+        <button class="modal-close" (click)="closeDetail()">✕</button>
+      </div>
+
+      <div class="drawer-tabs">
+        <button [class.active]="detailTab==='info'" (click)="detailTab='info'">Info</button>
+        <button [class.active]="detailTab==='data'" (click)="detailTab='data'">Payload / Resultado</button>
+        <button [class.active]="detailTab==='log'" (click)="detailTab='log'">Log</button>
+        <button [class.active]="detailTab==='history'" (click)="detailTab='history'">Historial</button>
+      </div>
+
+      <div class="drawer-body">
+        <!-- INFO -->
+        <div *ngIf="detailTab==='info'" class="info-grid">
+          <div><span>ID</span><b class="mono">{{ detail.id }}</b></div>
+          <div><span>Task ID</span><b class="mono">{{ detail.task_id }}</b></div>
+          <div><span>Tipo</span><b>{{ detail.process_type }}</b></div>
+          <div><span>Módulo</span><b>{{ detail.module }}</b></div>
+          <div><span>Prioridad</span><b>{{ detail.priority }}</b></div>
+          <div><span>Worker asignado</span><b class="mono">{{ detail.worker_name || '—' }}</b></div>
+          <div><span>Inicio</span><b>{{ detail.started_at ? (detail.started_at | date:'dd/MM HH:mm:ss') : '—' }}</b></div>
+          <div><span>Fin</span><b>{{ detail.finished_at ? (detail.finished_at | date:'dd/MM HH:mm:ss') : '—' }}</b></div>
+          <div><span>Duración</span><b>{{ detail.duration_seconds != null ? detail.duration_seconds + 's' : '—' }}</b></div>
+          <div><span>Intentos</span><b [class.err-n]="detail.retry_count>0">{{ detail.retry_count }} / {{ detail.max_retries }}</b></div>
+          <div *ngIf="detail.next_retry"><span>Próximo reintento</span><b>{{ detail.next_retry | date:'HH:mm:ss' }}</b></div>
+          <div class="full" *ngIf="detail.error_message"><span>Error</span><b class="err-box">{{ detail.error_message }}</b></div>
+        </div>
+
+        <!-- DATA -->
+        <div *ngIf="detailTab==='data'" class="data-view">
+          <div class="data-block"><span>Payload</span><pre>{{ json(detail.payload_json) }}</pre></div>
+          <div class="data-block"><span>Resultado</span><pre>{{ json(detail.result_json) }}</pre></div>
+        </div>
+
+        <!-- LOG -->
+        <div *ngIf="detailTab==='log'" class="log-view">
+          <div class="log-line" *ngFor="let l of detail.logs" [class]="logClass(l)">{{ l }}</div>
+          <div class="log-line lg-err" *ngIf="detail.error_message">[ERROR] {{ detail.error_message }}</div>
+        </div>
+
+        <!-- HISTORY -->
+        <div *ngIf="detailTab==='history'" class="hist-view">
+          <div class="hist-item" *ngFor="let h of detail.state_history">
+            <span class="hi-dot" [class]="'hi-dot ' + statusClass(h.estado)"></span>
+            <span class="hi-estado">{{ h.estado }}</span>
+            <span class="hi-at">{{ h.at | date:'dd/MM HH:mm:ss' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-foot">
+        <button class="df-btn retry" *ngIf="detail.status==='Fallido' || detail.status==='Cancelado'" (click)="retry(detail)">🔄 Reintentar</button>
+        <button class="df-btn" *ngIf="detail.status==='Ejecutando'" (click)="pause(detail)">⏸ Pausar</button>
+        <button class="df-btn cancel" *ngIf="detail.status==='Ejecutando' || detail.status==='Pendiente' || detail.status==='Reintentando'" (click)="cancel(detail)">⊘ Cancelar</button>
+        <button class="df-btn" (click)="runAgain(detail)">↻ Ejecutar nuevamente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="pr-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>
