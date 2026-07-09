@@ -105,10 +105,11 @@ def _run_scrape_all_stores() -> dict:
     from app.scrapers.estilos_scraper import EstilosScraper
     from app.scrapers.sodimac_scraper import SodimacScraper
     from app.scrapers.tottus_scraper import TottusScraper
+    from app.scrapers.mercadolibre_scraper import MercadoLibreScraper
     from app.repositories.product_repo import bulk_upsert_store, log_scraping
 
     r_log = _redis.from_url(settings.redis_url)
-    scrapers = [FalabellaScraper(), RipleyScraper(), PlazaVeaScraper(), OechsleScraper(), EstilosScraper(), SodimacScraper(), TottusScraper()]
+    scrapers = [FalabellaScraper(), RipleyScraper(), PlazaVeaScraper(), OechsleScraper(), EstilosScraper(), SodimacScraper(), TottusScraper(), MercadoLibreScraper()]
     results: dict[str, object] = {}
 
     _push_log(r_log, "CeleryBeat", f"Scrape iniciado ({len(scrapers)} tiendas)", "info")

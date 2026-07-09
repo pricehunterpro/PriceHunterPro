@@ -7,7 +7,7 @@ from fastapi import APIRouter
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
-_STORES = ["falabella", "ripley", "plazavea", "oechsle", "estilos", "sodimac", "tottus"]
+_STORES = ["falabella", "ripley", "plazavea", "oechsle", "estilos", "sodimac", "tottus", "mercadolibre"]
 
 _BEAT_SCHEDULE = [
     {"hour": 0,  "minute": 30},

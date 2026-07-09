@@ -219,7 +219,7 @@ export class DealsStateService {
   getStoreBadgeClass(store: string): string {
     const m: Record<string, string> = {
       falabella: 'store-falabella', ripley: 'store-ripley', plazavea: 'store-plazavea',
-      oechsle: 'store-oechsle', promart: 'store-promart', tottus: 'store-tottus', hiraoka: 'store-hiraoka', estilos: 'store-estilos', sodimac: 'store-sodimac',
+      oechsle: 'store-oechsle', promart: 'store-promart', tottus: 'store-tottus', hiraoka: 'store-hiraoka', estilos: 'store-estilos', sodimac: 'store-sodimac', mercadolibre: 'store-mercadolibre',
     };
     return m[store] ?? 'store-default';
   }

@@ -13,22 +13,24 @@ from app.scrapers.stealth import random_user_agent
 _BASE = "https://simple.ripley.com.pe"
 _MAX_PAGES = 6
 
+# Slugs verificados (2026-07-08). Ripley usa categorías simples de un nivel;
+# los slugs largos anteriores devolvían 404, por eso solo se raspaba tecnología.
 _CATEGORY_SLUGS = [
-    ("/tecnologia",                    "Tecnología"),
-    ("/electrodomesticos-y-muebles",   "Electrodomésticos"),
-    ("/audio-y-video",                 "Audio y Video"),
-    ("/celulares-y-tablets",           "Celulares"),
-    ("/computacion",                   "Computación"),
-    ("/deportes",                      "Deportes"),
-    ("/ropa-y-calzado-hombre",         "Ropa Hombre"),
-    ("/ropa-y-calzado-mujer",          "Ropa Mujer"),
-    ("/jugueteria",                    "Juguetería"),
-    ("/bebes-y-ninos",                 "Bebés y Niños"),
-    ("/belleza-y-cuidado-personal",    "Belleza"),
-    ("/relojes-y-joyas",               "Relojes y Joyas"),
-    ("/gaming",                        "Gaming"),
-    ("/muebles-y-deco",                "Muebles"),
-    ("/ferreteria-y-herramientas",     "Ferretería"),
+    ("/tecnologia",          "Tecnología"),
+    ("/celulares",           "Celulares"),
+    ("/electrohogar",        "Electrohogar"),
+    ("/hogar",               "Hogar"),
+    ("/hogar/ropa-de-cama",  "Ropa de Cama"),
+    ("/dormitorio",          "Dormitorio"),
+    ("/muebles",             "Muebles"),
+    ("/mujer",               "Moda Mujer"),
+    ("/hombre",              "Moda Hombre"),
+    ("/calzado",             "Calzado"),
+    ("/deporte",             "Deportes"),
+    ("/belleza",             "Belleza"),
+    ("/infantil",            "Infantil"),
+    ("/bebes",               "Bebés"),
+    ("/mascotas",            "Mascotas"),
 ]
 
 _OUT_OF_STOCK_KW = ("agotado", "sin stock", "no disponible", "out of stock")
