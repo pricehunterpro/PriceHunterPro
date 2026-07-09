@@ -7,6 +7,7 @@ from app.api.v1.bi_analytics import router as bi_analytics_router
 from app.api.v1.bi_profitability import router as bi_profitability_router
 from app.api.v1.bi_portfolio import router as bi_portfolio_router
 from app.api.v1.bi_top_products import router as bi_top_products_router
+from app.api.v1.templates import router as templates_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.deals import router as deals_router
 from app.api.v1.monitoring import router as monitoring_router
@@ -35,6 +36,7 @@ app.include_router(bi_analytics_router, prefix="/api/v1")
 app.include_router(bi_profitability_router, prefix="/api/v1")
 app.include_router(bi_portfolio_router, prefix="/api/v1")
 app.include_router(bi_top_products_router, prefix="/api/v1")
+app.include_router(templates_router,   prefix="/api/v1")
 app.include_router(auth_router,        prefix="/api/v1")
 app.include_router(deals_router,       prefix="/api/v1")
 app.include_router(monitoring_router,  prefix="/api/v1")

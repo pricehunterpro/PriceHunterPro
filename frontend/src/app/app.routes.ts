@@ -16,6 +16,7 @@ import { AnalyticsComponent } from './pages/analytics/analytics.component';
 import { RentabilidadComponent } from './pages/rentabilidad/rentabilidad.component';
 import { PortafolioComponent } from './pages/portafolio/portafolio.component';
 import { TopProductosComponent } from './pages/top-productos/top-productos.component';
+import { PlantillasComponent } from './pages/plantillas/plantillas.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
@@ -45,6 +46,7 @@ export const routes: Routes = [
       { path: 'marketing/tiktok-factory',    component: TiktokFactoryComponent,   canActivate: [adminGuard] },
       { path: 'marketing/supervision',       component: SupervisionComponent,     canActivate: [adminGuard] },
       { path: 'marketing/publicador-ia',     component: PublicadorComponent,      canActivate: [adminGuard] },
+      { path: 'marketing/plantillas',        component: PlantillasComponent,      canActivate: [adminGuard] },
       { path: 'calendario',                  component: CalendarioComponent,      canActivate: [adminGuard] },
 
       { path: '**', component: ComingSoonComponent },

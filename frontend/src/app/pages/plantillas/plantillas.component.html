@@ -1,0 +1,201 @@
+<div class="tpl-page">
+
+  <!-- Header -->
+  <div class="tpl-header">
+    <div>
+      <h2>🎨 Plantillas <span class="tpl-chip">Marketing</span></h2>
+      <p>Administra las plantillas visuales que usan el Publicador IA y TikTok Factory.</p>
+    </div>
+    <button class="add-btn" (click)="openNew()">＋ Nueva plantilla</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="tpl-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Total plantillas</span><span class="kpi-n">{{ kpis.totalPlantillas }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">Activas</span><span class="kpi-n">{{ kpis.plantillasActivas }}</span></div>
+    <div class="kpi warn"><span class="kpi-l">En borrador</span><span class="kpi-n">{{ kpis.plantillasBorrador }}</span></div>
+    <div class="kpi"><span class="kpi-l">Más utilizada</span><span class="kpi-top">{{ kpis.plantillaMasUsada }}</span><span class="kpi-sub">{{ kpis.plantillaMasUsadaUsos }} usos</span></div>
+    <div class="kpi"><span class="kpi-l">Última modificación</span><span class="kpi-top">{{ kpis.ultimaModificacion | date:'dd/MM/yyyy HH:mm' }}</span></div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="tpl-filters">
+    <select [(ngModel)]="fCanal" (ngModelChange)="onFilter()"><option value="">Todos los canales</option><option *ngFor="let c of channels" [value]="c">{{ c }}</option></select>
+    <select [(ngModel)]="fCategoria" (ngModelChange)="onFilter()"><option value="">Todas las categorías</option><option *ngFor="let c of categories" [value]="c">{{ c }}</option></select>
+    <select [(ngModel)]="fEstado" (ngModelChange)="onFilter()"><option value="">Todos los estados</option><option *ngFor="let e of estados" [value]="e">{{ e }}</option></select>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="tpl-loading" *ngIf="loading">Cargando plantillas…</div>
+
+  <!-- Grid de tarjetas -->
+  <div class="tpl-grid" *ngIf="!loading">
+    <div class="tpl-card" *ngFor="let t of items">
+      <div class="card-thumb">
+        <ng-container *ngTemplateOutlet="canvas; context: { cfg: cfgOf(t), channel: t.canal, box: { width: '100%', height: '150px' } }"></ng-container>
+        <span class="st-pill" [class.draft]="t.estado === 'Borrador'">{{ t.estado }}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-title">{{ t.nombre }}</div>
+        <div class="card-meta">
+          <span class="ch-badge" [class]="'ch-badge ' + canalClass(t.canal)">{{ t.canal }}</span>
+          <span class="cat-badge">{{ t.categoria }}</span>
+        </div>
+        <div class="card-sub">
+          <span>{{ t.resolucion }}</span>
+          <span>·</span>
+          <span>{{ t.updated_at | date:'dd/MM/yy' }}</span>
+        </div>
+      </div>
+      <div class="card-actions">
+        <button title="Editar" (click)="openEdit(t)">✎ Editar</button>
+        <button title="Duplicar" (click)="duplicate(t)">⧉</button>
+        <button title="Vista previa" (click)="openPreview(t)">👁</button>
+        <button title="Eliminar" class="del" (click)="remove(t)">🗑</button>
+      </div>
+    </div>
+
+    <div class="tpl-empty" *ngIf="!items.length">No hay plantillas. Crea la primera con “Nueva plantilla”.</div>
+  </div>
+
+  <!-- ══════════ EDITOR ══════════ -->
+  <div class="tpl-modal-backdrop" *ngIf="showEditor" (click)="closeEditor()">
+    <div class="tpl-editor" (click)="$event.stopPropagation()">
+      <div class="editor-head">
+        <h3>{{ editing ? 'Editar plantilla' : 'Nueva plantilla' }}</h3>
+        <button class="modal-close" (click)="closeEditor()">✕</button>
+      </div>
+
+      <div class="editor-body">
+        <!-- Panel de configuración -->
+        <div class="editor-config">
+          <div class="cfg-section">
+            <h4>General</h4>
+            <div class="fld full"><label>Nombre</label><input type="text" [(ngModel)]="form.nombre" placeholder="Nombre de la plantilla" /></div>
+            <div class="fld"><label>Canal</label><select [(ngModel)]="form.canal" (ngModelChange)="onCanalChange()"><option *ngFor="let c of channels" [value]="c">{{ c }}</option></select></div>
+            <div class="fld"><label>Categoría</label><select [(ngModel)]="form.categoria"><option *ngFor="let c of categories" [value]="c">{{ c }}</option></select></div>
+            <div class="fld"><label>Estado</label><select [(ngModel)]="form.estado"><option *ngFor="let e of estados" [value]="e">{{ e }}</option></select></div>
+            <div class="fld"><label>Resolución</label><input type="text" [value]="form.resolucion" readonly /></div>
+          </div>
+
+          <div class="cfg-section">
+            <h4>Estilo</h4>
+            <div class="fld color"><label>Color principal</label><div class="color-row"><input type="color" [(ngModel)]="cfg.colorPrincipal" /><span>{{ cfg.colorPrincipal }}</span></div></div>
+            <div class="fld color"><label>Color secundario</label><div class="color-row"><input type="color" [(ngModel)]="cfg.colorSecundario" /><span>{{ cfg.colorSecundario }}</span></div></div>
+            <div class="fld"><label>Tipografía</label><select [(ngModel)]="cfg.tipografia"><option *ngFor="let f of tipografias" [value]="f">{{ f }}</option></select></div>
+            <div class="fld full"><label>Logo (URL, opcional)</label><input type="text" [(ngModel)]="cfg.logo" placeholder="https://…" /></div>
+          </div>
+
+          <div class="cfg-section">
+            <h4>Posiciones</h4>
+            <div class="pos-list">
+              <div class="pos-item" *ngFor="let p of posicionElementos">
+                <span class="pos-label">{{ p.l }}</span>
+                <div class="pos-grid">
+                  <button *ngFor="let z of zonas" class="pos-cell" [class.active]="cfg.posiciones[p.k] === z.v" (click)="cfg.posiciones[p.k] = z.v" [title]="z.v">{{ z.l }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cfg-section">
+            <h4>Elementos</h4>
+            <div class="el-grid">
+              <label class="el-toggle" *ngFor="let e of elementos">
+                <input type="checkbox" [(ngModel)]="cfg.elementos[e.k]" />
+                <span class="el-check"></span>
+                <span>{{ e.l }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview en vivo -->
+        <div class="editor-preview">
+          <div class="pv-controls">
+            <div class="pv-devices">
+              <button [class.active]="previewDevice==='desktop'" (click)="previewDevice='desktop'" title="Desktop">🖥</button>
+              <button [class.active]="previewDevice==='tablet'" (click)="previewDevice='tablet'" title="Tablet">▭</button>
+              <button [class.active]="previewDevice==='mobile'" (click)="previewDevice='mobile'" title="Mobile">📱</button>
+            </div>
+            <select class="pv-channel" [(ngModel)]="previewChannel">
+              <option *ngFor="let c of channels" [value]="c">{{ c }}</option>
+            </select>
+          </div>
+          <div class="pv-stage">
+            <ng-container *ngTemplateOutlet="canvas; context: { cfg: cfg, channel: previewChannel, box: previewStyle(previewChannel) }"></ng-container>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-foot">
+        <button class="ghost-btn" (click)="closeEditor()">Cancelar</button>
+        <button class="save-btn" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando…' : (editing ? 'Guardar cambios' : 'Crear plantilla') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ VISTA PREVIA (desde tarjeta) ══════════ -->
+  <div class="tpl-modal-backdrop" *ngIf="showPreview && previewTpl" (click)="closePreview()">
+    <div class="tpl-preview-modal" (click)="$event.stopPropagation()">
+      <div class="editor-head">
+        <h3>{{ previewTpl.nombre }}</h3>
+        <button class="modal-close" (click)="closePreview()">✕</button>
+      </div>
+      <div class="pv-controls center">
+        <div class="pv-devices">
+          <button [class.active]="previewDevice==='desktop'" (click)="previewDevice='desktop'">🖥</button>
+          <button [class.active]="previewDevice==='tablet'" (click)="previewDevice='tablet'">▭</button>
+          <button [class.active]="previewDevice==='mobile'" (click)="previewDevice='mobile'">📱</button>
+        </div>
+        <select class="pv-channel" [(ngModel)]="previewChannel">
+          <option *ngFor="let c of channels" [value]="c">{{ c }}</option>
+        </select>
+      </div>
+      <div class="pv-stage big">
+        <ng-container *ngTemplateOutlet="canvas; context: { cfg: cfgOf(previewTpl), channel: previewChannel, box: previewStyle(previewChannel) }"></ng-container>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="tpl-toast" *ngIf="toast">{{ toast }}</div>
+
+  <!-- ══════════ CANVAS REUTILIZABLE (TemplatePreview) ══════════ -->
+  <ng-template #canvas let-cfg="cfg" let-channel="channel" let-box="box">
+    <div class="pv-canvas" [ngStyle]="box" [style.background]="cfg.colorSecundario" [style.fontFamily]="cfg.tipografia">
+      <div class="pv-frame" [style.borderColor]="cfg.colorPrincipal"></div>
+
+      <!-- Producto -->
+      <div class="pv-el pv-product" [ngStyle]="zoneStyle(pos(cfg,'producto'))">🛍️</div>
+
+      <!-- Logo (esquina) -->
+      <div class="pv-el pv-logo" *ngIf="el(cfg,'logo')" [style.color]="cfg.colorPrincipal">◈ PriceHunter</div>
+      <!-- Fecha -->
+      <div class="pv-el pv-date" *ngIf="el(cfg,'fecha')">09/07</div>
+      <!-- Categoría -->
+      <div class="pv-el pv-cat" *ngIf="el(cfg,'categoria')" [style.borderColor]="cfg.colorPrincipal" [style.color]="cfg.colorPrincipal">Tecnología</div>
+
+      <!-- Descuento -->
+      <div class="pv-el pv-disc" *ngIf="el(cfg,'descuento')" [ngStyle]="zoneStyle(pos(cfg,'descuento'))" [style.background]="cfg.colorPrincipal">-60%</div>
+      <!-- Score IA -->
+      <div class="pv-el pv-score" *ngIf="el(cfg,'scoreIA')" [ngStyle]="zoneStyle(pos(cfg,'scoreIA'))" [style.borderColor]="cfg.colorPrincipal" [style.color]="cfg.colorPrincipal">98</div>
+      <!-- Precio -->
+      <div class="pv-el pv-price" *ngIf="el(cfg,'precioActual') || el(cfg,'precioAnterior')" [ngStyle]="zoneStyle(pos(cfg,'precio'))">
+        <span class="pv-old" *ngIf="el(cfg,'precioAnterior')">S/ 299</span>
+        <span class="pv-now" *ngIf="el(cfg,'precioActual')" [style.color]="cfg.colorPrincipal">S/ 119</span>
+      </div>
+      <!-- Tienda -->
+      <div class="pv-el pv-store" *ngIf="el(cfg,'tienda')" [ngStyle]="zoneStyle(pos(cfg,'tienda'))">Falabella</div>
+      <!-- Marca -->
+      <div class="pv-el pv-brand" *ngIf="el(cfg,'marca')" [ngStyle]="zoneStyle(pos(cfg,'marca'))">Nike</div>
+      <!-- CTA -->
+      <div class="pv-el pv-cta" *ngIf="el(cfg,'cta')" [ngStyle]="zoneStyle(pos(cfg,'botonComprar'))" [style.background]="cfg.colorPrincipal">Comprar</div>
+      <!-- QR -->
+      <div class="pv-el pv-qr" *ngIf="el(cfg,'qr')" [ngStyle]="zoneStyle(pos(cfg,'qr'))">▦</div>
+      <!-- Hashtags -->
+      <div class="pv-el pv-tags" *ngIf="el(cfg,'hashtags')">#ofertas #pricehunter #{{ channel | lowercase }}</div>
+    </div>
+  </ng-template>
+
+</div>
