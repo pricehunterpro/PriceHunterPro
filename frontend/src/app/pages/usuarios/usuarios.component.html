@@ -1,0 +1,103 @@
+<div class="us-page">
+
+  <!-- Header -->
+  <div class="us-header">
+    <div>
+      <h2>👤 Usuarios <span class="us-chip">Administración</span></h2>
+      <p>Gestiona usuarios, roles y permisos. Preparado para múltiples empresas (multi-tenant).</p>
+    </div>
+    <button class="add-btn" (click)="openNew()">＋ Nuevo usuario</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="us-kpis" *ngIf="kpis">
+    <div class="kpi ok"><span class="kpi-l">Usuarios activos</span><span class="kpi-n">{{ kpis.activos }}</span></div>
+    <div class="kpi"><span class="kpi-l">Usuarios inactivos</span><span class="kpi-n">{{ kpis.inactivos }}</span></div>
+    <div class="kpi accent"><span class="kpi-l">Administradores</span><span class="kpi-n">{{ kpis.administradores }}</span></div>
+    <div class="kpi info"><span class="kpi-l">Ingresos (24h)</span><span class="kpi-n">{{ kpis.ultimosIngresos }}</span></div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="us-filters">
+    <input class="us-search" type="text" [(ngModel)]="q" (keyup.enter)="load()" placeholder="Buscar por nombre o correo…" />
+    <select [(ngModel)]="fRole" (ngModelChange)="load()"><option value="">Todos los roles</option><option *ngFor="let r of roles" [value]="r">{{ r }}</option></select>
+    <select [(ngModel)]="fStatus" (ngModelChange)="load()"><option value="">Todos los estados</option><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="us-loading" *ngIf="loading && !items.length">Cargando usuarios…</div>
+
+  <!-- Tabla -->
+  <div class="us-table-wrap" *ngIf="items.length">
+    <table class="us-table">
+      <thead>
+        <tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Creación</th><th class="c-act">Acciones</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let u of items">
+          <td>
+            <div class="user-cell">
+              <span class="avatar" [class]="'avatar ' + roleClass(u.role)">{{ initials(u.nombre) }}</span>
+              <div><span class="u-name">{{ u.nombre }}</span><span class="u-tenant">{{ u.tenant_id }}</span></div>
+            </div>
+          </td>
+          <td class="mono">{{ u.email }}</td>
+          <td><span class="role-badge" [class]="'role-badge ' + roleClass(u.role)">{{ u.role }}</span></td>
+          <td><span class="st-badge" [class.active]="u.status==='Activo'"><span class="st-dot"></span>{{ u.status }}</span></td>
+          <td class="mono sm">{{ u.last_access ? (u.last_access | date:'dd/MM HH:mm') : 'Nunca' }}</td>
+          <td class="mono sm">{{ u.created_at | date:'dd/MM/yy' }}</td>
+          <td class="c-act">
+            <div class="row-actions">
+              <button class="ra" title="Editar" (click)="openEdit(u)">✎</button>
+              <button class="ra" title="Restablecer contraseña" (click)="resetPassword(u)">🔑</button>
+              <button class="ra" [title]="u.status==='Activo' ? 'Desactivar' : 'Activar'" (click)="toggleStatus(u)">{{ u.status==='Activo' ? '⏸' : '▶' }}</button>
+              <button class="ra del" title="Eliminar" (click)="remove(u)">🗑</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ Modal form ══ -->
+  <div class="us-modal-backdrop" *ngIf="showForm" (click)="closeForm()">
+    <div class="us-modal" (click)="$event.stopPropagation()">
+      <div class="modal-head"><h3>{{ editing ? 'Editar usuario' : 'Nuevo usuario' }}</h3><button class="modal-close" (click)="closeForm()">✕</button></div>
+      <div class="modal-body">
+        <div class="fld full"><label>Nombre</label><input type="text" [(ngModel)]="form.nombre" placeholder="Nombre completo" /></div>
+        <div class="fld full"><label>Correo</label><input type="email" [(ngModel)]="form.email" placeholder="correo@empresa.com" /></div>
+        <div class="fld"><label>Rol</label><select [(ngModel)]="form.role"><option *ngFor="let r of roles" [value]="r">{{ r }}</option></select></div>
+        <div class="fld"><label>Estado</label><select [(ngModel)]="form.status"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div>
+        <div class="fld"><label>Empresa (tenant)</label><select [(ngModel)]="form.tenant_id"><option *ngFor="let t of tenants" [value]="t">{{ t }}</option></select></div>
+        <div class="fld" *ngIf="!editing"><label>Contraseña (opcional)</label><input type="text" [(ngModel)]="form.password" placeholder="Auto-generada si vacía" /></div>
+        <!-- Permisos del rol (RBAC) -->
+        <div class="perm-box full">
+          <span class="perm-label">Permisos por módulo (RBAC) · rol {{ form.role }}</span>
+          <div class="perm-list">
+            <span class="perm-tag" *ngFor="let m of modulos" [class.on]="formPermisos.includes(m)">{{ m }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" (click)="closeForm()">Cancelar</button>
+        <button class="save-btn" (click)="save()" [disabled]="saving">{{ saving ? 'Guardando…' : (editing ? 'Guardar' : 'Crear usuario') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Contraseña temporal ══ -->
+  <div class="us-modal-backdrop" *ngIf="tempPassword" (click)="tempPassword=''">
+    <div class="us-modal sm" (click)="$event.stopPropagation()">
+      <div class="modal-head"><h3>🔑 Contraseña temporal</h3><button class="modal-close" (click)="tempPassword=''">✕</button></div>
+      <div class="modal-body single">
+        <p class="temp-hint">Comparte esta contraseña con el usuario. No se volverá a mostrar.</p>
+        <div class="temp-pw"><code>{{ tempPassword }}</code><button (click)="copyTemp()">Copiar</button></div>
+      </div>
+      <div class="modal-foot"><button class="save-btn" (click)="tempPassword=''">Entendido</button></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="us-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>

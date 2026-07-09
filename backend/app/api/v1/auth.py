@@ -110,6 +110,16 @@ def admin_login(body: dict[str, Any] = Body(...)) -> TokenResponse:
         token = create_access_token(subject=username, role="viewer")
         return TokenResponse(access_token=token)
 
+    # Usuarios creados en el módulo de Administración (registro en Redis)
+    try:
+        from app.api.v1.users import authenticate
+        info = authenticate(username, password)
+        if info:
+            token = create_access_token(subject=info["subject"], role=info["role"])
+            return TokenResponse(access_token=token)
+    except Exception:
+        pass
+
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 

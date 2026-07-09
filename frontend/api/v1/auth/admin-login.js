@@ -23,7 +23,10 @@ function getUsers() {
   return users;
 }
 
-module.exports = (req, res) => {
+// Backend en Railway (usuarios creados en el módulo de Administración)
+const BACKEND = 'https://pricehunterpro-production.up.railway.app';
+
+module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -34,16 +37,26 @@ module.exports = (req, res) => {
   const { username, password } = req.body || {};
   const match = getUsers().find(u => u.username === username && u.password === password);
 
-  if (!match) {
-    return res.status(401).json({ detail: 'Credenciales inválidas' });
+  if (match) {
+    const secret = process.env.JWT_SECRET_KEY || 'change-me';
+    const now    = Math.floor(Date.now() / 1000);
+    const token  = createJWT(
+      { sub: match.username, role: match.role, iat: now, exp: now + 86400, type: 'access' },
+      secret,
+    );
+    return res.status(200).json({ access_token: token, token_type: 'bearer' });
   }
 
-  const secret = process.env.JWT_SECRET_KEY || 'change-me';
-  const now    = Math.floor(Date.now() / 1000);
-  const token  = createJWT(
-    { sub: match.username, role: match.role, iat: now, exp: now + 86400, type: 'access' },
-    secret,
-  );
-
-  res.status(200).json({ access_token: token, token_type: 'bearer' });
+  // Fallback: usuarios del registro (Redis) validados por el backend de Railway
+  try {
+    const r = await fetch(`${BACKEND}/api/v1/auth/admin-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await r.json();
+    return res.status(r.status).json(data);
+  } catch (e) {
+    return res.status(401).json({ detail: 'Credenciales inválidas' });
+  }
 };

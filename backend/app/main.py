@@ -12,6 +12,7 @@ from app.api.v1.scrapers import router as scrapers_router
 from app.api.v1.processes import router as processes_router
 from app.api.v1.logs import router as logs_router
 from app.api.v1.history import router as history_router
+from app.api.v1.users import router as users_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.deals import router as deals_router
 from app.api.v1.monitoring import router as monitoring_router
@@ -45,6 +46,7 @@ app.include_router(scrapers_router,    prefix="/api/v1")
 app.include_router(processes_router,   prefix="/api/v1")
 app.include_router(logs_router,        prefix="/api/v1")
 app.include_router(history_router,     prefix="/api/v1")
+app.include_router(users_router,       prefix="/api/v1")
 app.include_router(auth_router,        prefix="/api/v1")
 app.include_router(deals_router,       prefix="/api/v1")
 app.include_router(monitoring_router,  prefix="/api/v1")
