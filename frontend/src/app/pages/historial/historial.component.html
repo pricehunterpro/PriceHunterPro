@@ -1,0 +1,172 @@
+<div class="hi-page">
+
+  <!-- Header -->
+  <div class="hi-header">
+    <div>
+      <h2>📉 Historial de Precios <span class="hi-chip">Inteligencia Histórica</span></h2>
+      <p>Evolución completa del precio de cualquier producto detectado por los scrapers.</p>
+    </div>
+    <button class="ghost-btn" (click)="download()">⬇ CSV</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="hi-kpis" *ngIf="kpis">
+    <div class="kpi accent"><span class="kpi-l">Productos con historial</span><span class="kpi-n">{{ kpis.productosConHistorial | number }}</span></div>
+    <div class="kpi"><span class="kpi-l">Cambios registrados</span><span class="kpi-n">{{ kpis.cambiosRegistrados | number }}</span></div>
+    <div class="kpi ok"><span class="kpi-l">Precio mín. histórico</span><span class="kpi-n sm">{{ money(kpis.precioMinHistorico) }}</span></div>
+    <div class="kpi"><span class="kpi-l">Precio máx. histórico</span><span class="kpi-n sm">{{ money(kpis.precioMaxHistorico) }}</span></div>
+    <div class="kpi warn"><span class="kpi-l">Variación promedio</span><span class="kpi-n">{{ kpis.variacionPromedio }}%</span></div>
+    <div class="kpi"><span class="kpi-l">Última sincronización</span><span class="kpi-top">{{ kpis.ultimaSincronizacion ? (kpis.ultimaSincronizacion | date:'dd/MM HH:mm') : '—' }}</span></div>
+  </div>
+
+  <!-- Buscador + filtros -->
+  <div class="hi-filters">
+    <input class="hi-search" type="text" [(ngModel)]="q" (keyup.enter)="search()" placeholder="Buscar producto, marca, categoría o tienda…" />
+    <select [(ngModel)]="fStore" (ngModelChange)="search()"><option value="">Tienda</option><option *ngFor="let s of storesList" [value]="s">{{ s }}</option></select>
+    <select [(ngModel)]="fCategory" (ngModelChange)="search()"><option value="">Categoría</option><option *ngFor="let c of categoriesList" [value]="c">{{ c }}</option></select>
+    <select [(ngModel)]="fBrand" (ngModelChange)="search()"><option value="">Marca</option><option *ngFor="let b of brandsList" [value]="b">{{ b }}</option></select>
+    <input class="hi-num" type="number" [(ngModel)]="fMinPrice" (change)="search()" placeholder="S/ mín" />
+    <input class="hi-num" type="number" [(ngModel)]="fMaxPrice" (change)="search()" placeholder="S/ máx" />
+    <div class="score-f"><span>Score ≥ {{ fMinScore }}</span><input type="range" min="0" max="100" step="5" [(ngModel)]="fMinScore" (change)="search()" /></div>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="hi-loading" *ngIf="loading">Cargando historial…</div>
+
+  <!-- Tabla -->
+  <div class="hi-table-wrap" *ngIf="!loading && items.length">
+    <table class="hi-table">
+      <thead>
+        <tr>
+          <th class="c-prod">Producto</th><th>Marca</th><th>Categoría</th><th>Tienda</th>
+          <th class="c-num">Actual</th><th class="c-num">Mín</th><th class="c-num">Máx</th><th class="c-num">Prom</th>
+          <th class="c-num">Últ. cambio</th><th class="c-num">Var %</th><th class="c-num">Score</th><th class="c-act"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let it of items" (click)="open(it)">
+          <td class="c-prod">
+            <div class="prod-cell">
+              <div class="prod-thumb"><img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.name" loading="lazy" /></div>
+              <span class="prod-name">{{ it.name }}</span>
+            </div>
+          </td>
+          <td class="muted">{{ it.brand || '—' }}</td>
+          <td class="muted">{{ it.category }}</td>
+          <td><span class="badge-store" [class]="'badge-store ' + storeBadge(it.store)">{{ it.store }}</span></td>
+          <td class="c-num price-now">{{ money(it.currentPrice) }}<span class="min-flag" *ngIf="it.esMinimo" title="Precio mínimo histórico">▼</span></td>
+          <td class="c-num">{{ money(it.precioMin) }}</td>
+          <td class="c-num">{{ money(it.precioMax) }}</td>
+          <td class="c-num muted">{{ money(it.precioProm) }}</td>
+          <td class="c-num mono sm">{{ it.ultimoCambio ? (it.ultimoCambio | date:'dd/MM') : '—' }}</td>
+          <td class="c-num"><span class="var" [class]="'var ' + varClass(it.variacionPct)">{{ it.variacionPct > 0 ? '+' : '' }}{{ it.variacionPct }}%</span></td>
+          <td class="c-num"><span class="score-pill">{{ it.score }}</span></td>
+          <td class="c-act"><button class="ra" (click)="$event.stopPropagation(); open(it)">📈</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="hi-empty" *ngIf="!loading && !items.length">No se encontraron productos con historial.</div>
+
+  <!-- Paginación -->
+  <div class="hi-pager" *ngIf="!loading && total > limit">
+    <button (click)="goPage(page-1)" [disabled]="page<=1">‹ Anterior</button>
+    <span>Página {{ page }} de {{ totalPages }} · {{ total | number }} productos</span>
+    <button (click)="goPage(page+1)" [disabled]="page>=totalPages">Siguiente ›</button>
+  </div>
+
+  <!-- ══ DETALLE ══ -->
+  <div class="hi-modal-backdrop" *ngIf="detail || loadingDetail" (click)="close()">
+    <div class="hi-detail" (click)="$event.stopPropagation()">
+      <div class="detail-loading" *ngIf="loadingDetail">Cargando…</div>
+      <ng-container *ngIf="detail">
+        <div class="detail-head">
+          <div class="dh-info">
+            <div class="dh-thumb"><img *ngIf="detail.imageUrl" [src]="detail.imageUrl" [alt]="detail.name" /></div>
+            <div>
+              <h3>{{ detail.name }}</h3>
+              <div class="dh-meta">
+                <span class="badge-store" [class]="'badge-store ' + storeBadge(detail.store)">{{ detail.store }}</span>
+                <span class="dh-cat">{{ detail.category }}</span>
+                <span class="score-pill">Score {{ detail.score }}</span>
+              </div>
+            </div>
+          </div>
+          <button class="modal-close" (click)="close()">✕</button>
+        </div>
+
+        <!-- Alertas -->
+        <div class="alert-row">
+          <span class="alert-tag ok" *ngIf="detail.alertas.esMinimoHistorico">🟢 Precio mínimo histórico</span>
+          <span class="alert-tag down" *ngIf="detail.alertas.bajoDePrecio">↓ Bajó de precio</span>
+          <span class="alert-tag up" *ngIf="detail.alertas.subioDePrecio">↑ Sobre el mínimo</span>
+          <span class="alert-tag back" *ngIf="detail.alertas.volvioAlMinimo">↺ Volvió al mínimo</span>
+        </div>
+
+        <div class="detail-body">
+          <!-- Gráfico -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <div class="chart-metrics">
+                <button [class.active]="chartMetric==='precios'" (click)="chartMetric='precios'">Precio</button>
+                <button [class.active]="chartMetric==='descuentos'" (click)="chartMetric='descuentos'">Descuento</button>
+                <button [class.active]="chartMetric==='scores'" (click)="chartMetric='scores'">Score IA</button>
+              </div>
+              <div class="chart-periods">
+                <button *ngFor="let p of periods" [class.active]="chartPeriod===p.v" (click)="setPeriod(p.v)">{{ p.l }}</button>
+              </div>
+            </div>
+            <div class="chart-body" *ngIf="series.length > 1; else noChart">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="chart-svg">
+                <defs><linearGradient id="hgrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" [attr.stop-color]="metricColor()" stop-opacity=".3"/><stop offset="100%" [attr.stop-color]="metricColor()" stop-opacity="0"/></linearGradient></defs>
+                <polygon [attr.points]="area()" fill="url(#hgrad)"/>
+                <polyline [attr.points]="points()" fill="none" [attr.stroke]="metricColor()" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+              </svg>
+              <div class="chart-labels"><span *ngFor="let l of chart?.labels">{{ l }}</span></div>
+            </div>
+            <ng-template #noChart><div class="chart-empty">Datos insuficientes para el período.</div></ng-template>
+          </div>
+
+          <!-- Estadísticas -->
+          <div class="stats-grid">
+            <div class="stat"><span>Precio actual</span><b class="green">{{ money(detail.stats.precioActual) }}</b></div>
+            <div class="stat"><span>Precio mínimo</span><b>{{ money(detail.stats.precioMin) }}</b></div>
+            <div class="stat"><span>Precio máximo</span><b>{{ money(detail.stats.precioMax) }}</b></div>
+            <div class="stat"><span>Precio promedio</span><b>{{ money(detail.stats.precioProm) }}</b></div>
+            <div class="stat"><span>Variación</span><b [class]="varClass(detail.stats.variacion)">{{ detail.stats.variacion }}%</b></div>
+            <div class="stat"><span>Mayor descuento</span><b class="green">{{ detail.stats.mayorDescuento }}%</b></div>
+            <div class="stat"><span>Días monitoreados</span><b>{{ detail.stats.diasMonitoreados }}</b></div>
+            <div class="stat"><span>Cambios</span><b>{{ detail.stats.cambios | number }}</b></div>
+          </div>
+
+          <!-- Info general + Timeline -->
+          <div class="detail-cols">
+            <div class="info-card">
+              <h4>Información general</h4>
+              <div class="ic-row"><span>SKU</span><b class="mono">{{ detail.sku || '—' }}</b></div>
+              <div class="ic-row"><span>Estado</span><b>{{ detail.inStock ? 'En stock' : 'Agotado' }}</b></div>
+              <div class="ic-row"><span>Marca</span><b>{{ detail.brand || '—' }}</b></div>
+              <a *ngIf="detail.url" [href]="detail.url" target="_blank" rel="noopener" class="ic-link">Ver en tienda ↗</a>
+            </div>
+            <div class="timeline-card">
+              <h4>Timeline de cambios</h4>
+              <div class="tl-empty" *ngIf="!timeline.length">Sin cambios registrados.</div>
+              <div class="tl-list">
+                <div class="tl-item" *ngFor="let t of timeline">
+                  <span class="tl-dot" [class.min]="t.esMinimo" [class.up]="t.direccion==='up'" [class.down]="t.direccion==='down'"></span>
+                  <span class="tl-date">{{ t.fecha | date:'dd/MM/yy HH:mm' }}</span>
+                  <span class="tl-price" [class.min]="t.esMinimo">{{ money(t.precio) }}</span>
+                  <span class="tl-arrow" *ngIf="t.direccion==='down'">↓</span>
+                  <span class="tl-arrow up" *ngIf="t.direccion==='up'">↑</span>
+                  <span class="tl-min" *ngIf="t.esMinimo">mínimo</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+
+</div>

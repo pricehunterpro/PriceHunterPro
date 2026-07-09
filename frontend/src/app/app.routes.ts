@@ -20,6 +20,7 @@ import { PlantillasComponent } from './pages/plantillas/plantillas.component';
 import { ScrapersComponent } from './pages/scrapers/scrapers.component';
 import { ProcesosComponent } from './pages/procesos/procesos.component';
 import { LogsComponent } from './pages/logs/logs.component';
+import { HistorialComponent } from './pages/historial/historial.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
@@ -36,6 +37,7 @@ export const routes: Routes = [
       { path: 'oportunidades', component: OportunidadesComponent },
       { path: 'alertas',       component: AlertasComponent },
       { path: 'gangas',        component: GangasComponent },
+      { path: 'oportunidades/historial', component: HistorialComponent },
 
       // ── Solo admin ──
       { path: 'motor-ia',                    component: MotorIaComponent,         canActivate: [adminGuard] },
