@@ -198,9 +198,11 @@ def _notify_new_alerts(r_log=None) -> int:
             WITH hist AS (
                 SELECT store_product_id,
                        AVG(price) AS avg_hist_price,
+                       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS med_hist_price,
                        COUNT(*)   AS hist_count
                 FROM price_history
                 WHERE price > 0
+                  AND price < 100000            -- excluye precios basura (parsing corrupto)
                   AND scraped_at < NOW() - INTERVAL '12 hours'
                 GROUP BY store_product_id
             ),
@@ -224,13 +226,21 @@ def _notify_new_alerts(r_log=None) -> int:
                     sp.discount_percentage, p.sku_normalized
                 FROM store_products sp
                 JOIN products p ON p.id = sp.product_id
+                LEFT JOIN hist hc ON hc.store_product_id = sp.id
                 WHERE sp.in_stock = true
                   AND sp.current_price > 0
                   AND sp.original_price > sp.current_price        -- precio original SIEMPRE mayor al actual
                   AND sp.current_price >= 50                       -- mínimo S/50 precio actual
                   AND sp.original_price >= 100                     -- mínimo S/100 precio original
                   AND (sp.original_price - sp.current_price) >= 100  -- ahorro real >= S/100
-                  AND sp.original_price < sp.current_price * 10   -- anti-datos-basura
+                  AND sp.original_price < 100000                  -- guard absoluto anti-basura (parsing corrupto = millones)
+                  AND (
+                        sp.original_price < sp.current_price * 10  -- caso normal (hasta ~90% off)
+                        OR (                                       -- ERROR DE PRECIO: permite >10x SOLO si la MEDIANA histórica lo confirma
+                            hc.hist_count >= 3 AND hc.med_hist_price > 0
+                            AND sp.current_price < hc.med_hist_price * 0.30
+                        )
+                  )
                   AND (sp.original_price - sp.current_price) / sp.original_price >= 0.10  -- >=10% real
                 ORDER BY COALESCE(p.sku_normalized, sp.id), sp.current_price ASC
             )
@@ -246,7 +256,13 @@ def _notify_new_alerts(r_log=None) -> int:
                    COALESCE(h.hist_count, 0)                              AS hist_count,
                    CAST(COALESCE(m.avg_market_price, 0) AS float)         AS avg_market_price,
                    COALESCE(m.store_count, 0)                             AS store_count,
-                   CAST((c.original_price - c.current_price) / c.original_price * 100 AS float) AS real_discount_pct
+                   CAST((c.original_price - c.current_price) / c.original_price * 100 AS float) AS real_discount_pct,
+                   -- ERROR DE PRECIO (glitch): >=70% bajo su MEDIANA histórica, con historia
+                   -- confiable (>=3 registros). Mediana (no promedio) = inmune a outliers de
+                   -- parsing; y no usa original_price = inmune a original corrupto.
+                   CASE WHEN h.hist_count >= 3 AND h.med_hist_price > 0
+                             AND c.current_price < h.med_hist_price * 0.30
+                        THEN true ELSE false END                          AS is_price_error
             FROM candidates c
             LEFT JOIN hist h ON h.store_product_id = c.id
             LEFT JOIN market m ON m.sku_normalized = c.sku_normalized
@@ -301,8 +317,12 @@ def _notify_new_alerts(r_log=None) -> int:
             "avgMarketPrice": ref_price,
             "mktDiffPct":    diff,
             "url":           r_row.url or "",
+            "priceError":    bool(getattr(r_row, "is_price_error", False)),
             "_key":          key,
         })
+
+    # Los errores de precio (glitches) van PRIMERO: son el contenido más viral.
+    new_alerts.sort(key=lambda a: not a["priceError"])
 
     channels = [c for c in [settings.telegram_channel_dev, settings.telegram_channel_prd] if c]
     sent_count = 0
