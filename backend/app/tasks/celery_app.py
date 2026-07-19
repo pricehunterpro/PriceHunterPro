@@ -50,6 +50,9 @@ _engine = create_engine(
     _sync_url, pool_pre_ping=True, pool_recycle=1800,
     executemany_mode="values_plus_batch",
 )
+# Nota: el statement_timeout (2 min por defecto en Supabase) se amplía por
+# transacción con `SET LOCAL` dentro de bulk_upsert_store; el pooler ignora el
+# `options` de connect_args, por eso no se fija aquí.
 
 
 @worker_process_init.connect

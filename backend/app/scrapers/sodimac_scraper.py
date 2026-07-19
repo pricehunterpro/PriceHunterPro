@@ -152,12 +152,23 @@ class SodimacScraper(BaseScraper):
                 for slug in _CATEGORY_SLUGS:
                     raw = slug.split("/")[-1]
                     cat_name = raw.replace("-y-", " y ").replace("-", " ").title()
+                    seen_skus: set[str] = set()
                     for page_num in range(1, _MAX_PAGES + 1):
-                        url = f"{_BASE}{slug}?currentPage={page_num}"
+                        # El parámetro real es `page`, NO `currentPage` (misma infra
+                        # Next.js que Falabella). Con `currentPage` devolvía siempre la
+                        # página 1 → páginas 2..N duplicadas, colapsando la cobertura.
+                        url = f"{_BASE}{slug}?page={page_num}"
                         data = await _get_next_data(client, url)
                         results = (data.get("props") or {}).get("pageProps", {}).get("results") or []
                         if not results:
                             break
+                        # Guarda anti-bucle: si no hay SKUs nuevos, dejamos de paginar.
+                        page_skus = {
+                            str(r.get("skuId") or r.get("productId") or "") for r in results
+                        }
+                        if page_skus and page_skus <= seen_skus:
+                            break
+                        seen_skus |= page_skus
                         items = _products_from_results(results, cat_name)
                         all_products.extend(items)
                         if len(results) < 20:

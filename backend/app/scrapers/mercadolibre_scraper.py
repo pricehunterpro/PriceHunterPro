@@ -13,7 +13,24 @@ from app.scrapers.stealth import random_user_agent
 
 _BASE = "https://www.mercadolibre.com.pe"
 _OFERTAS = f"{_BASE}/ofertas"
-_MAX_PAGES = 25  # 40 productos/página → ~1000 ofertas
+_MAX_PAGES = 25       # páginas de la página general de ofertas (destacadas, cross-categoría)
+_MAX_PAGES_CAT = 18   # páginas por categoría
+
+# La página general /ofertas tope ~919 productos (se repite tras ~pág 23). Para
+# ampliar cobertura recorremos también las ofertas POR CATEGORÍA
+# (`/ofertas?category=MPE...`), que paginan profundo y traen productos distintos
+# (overlap mínimo entre categorías). IDs verificados en vivo; se excluye MPE5726
+# (Electrodomésticos) porque cae al listado general.
+_CATEGORIES = {
+    "MPE1051": "Celulares",           "MPE1648": "Computación",
+    "MPE1000": "Electrónica",         "MPE1276": "Deportes",
+    "MPE1430": "Ropa",                "MPE1144": "Consolas y Videojuegos",
+    "MPE1574": "Hogar",               "MPE1246": "Belleza",
+    "MPE1039": "Cámaras",             "MPE3937": "Relojes y Joyas",
+    "MPE1132": "Juegos y Juguetes",   "MPE1384": "Bebés",
+    "MPE1512": "Herramientas",        "MPE1071": "Mascotas",
+    "MPE1182": "Instrumentos",
+}
 
 
 def _make_client() -> httpx.AsyncClient:
@@ -61,7 +78,7 @@ def _sku_from(url: str, image: str) -> str:
     return "ml" + hashlib.md5((image or "x").encode()).hexdigest()[:14]
 
 
-def _parse_cards(html: str) -> list[ScrapedProduct]:
+def _parse_cards(html: str, category: str = "Ofertas") -> list[ScrapedProduct]:
     soup = BeautifulSoup(html, "html.parser")
     cards = soup.select(".poly-card")
     out: list[ScrapedProduct] = []
@@ -108,7 +125,7 @@ def _parse_cards(html: str) -> list[ScrapedProduct]:
             discount_percentage=discount,
             in_stock=True,  # la página de ofertas solo lista productos comprables
             image_url=str(image_url),
-            category="Ofertas",
+            category=category,
             scraped_at=now_utc(),
         ))
     return out
@@ -117,28 +134,52 @@ def _parse_cards(html: str) -> list[ScrapedProduct]:
 class MercadoLibreScraper(BaseScraper):
     store = "mercadolibre"
 
+    async def _scrape_listing(
+        self, client: httpx.AsyncClient, base_url: str, max_pages: int,
+        category: str, seen: set[str], out: list[ScrapedProduct],
+    ) -> None:
+        """Pagina un listado de ofertas (general o por categoría) acumulando
+        productos nuevos en `out`. Dedup global vía `seen` (store_sku). Corta tras
+        2 páginas SIN productos nuevos (tolera que una página solape del todo con
+        lo ya visto pero las siguientes traigan cola) o al llegar a una parcial."""
+        empty_streak = 0
+        for page in range(1, max_pages + 1):
+            sep = "&" if "?" in base_url else "?"
+            url = f"{base_url}{sep}page={page}"
+            try:
+                r = await client.get(url)
+            except Exception:
+                break
+            if r.status_code != 200:
+                break
+            items = _parse_cards(r.content.decode("utf-8", errors="replace"), category)
+            if not items:
+                break
+            new_items = [i for i in items if i.store_sku not in seen]
+            seen.update(i.store_sku for i in new_items)
+            out.extend(new_items)
+            await asyncio.sleep(0.5)
+            empty_streak = empty_streak + 1 if not new_items else 0
+            if empty_streak >= 2 or len(items) < 20:
+                break
+
     async def get_category(self, category_url: str = "") -> list[ScrapedProduct]:
         all_products: list[ScrapedProduct] = []
         seen: set[str] = set()
         try:
             async with _make_client() as client:
-                for page in range(1, _MAX_PAGES + 1):
-                    url = f"{_OFERTAS}?page={page}"
-                    try:
-                        r = await client.get(url)
-                    except Exception:
-                        break
-                    if r.status_code != 200:
-                        break
-                    items = _parse_cards(r.content.decode("utf-8", errors="replace"))
-                    if not items:
-                        break
-                    new_items = [i for i in items if i.store_sku not in seen]
-                    seen.update(i.store_sku for i in new_items)
-                    all_products.extend(new_items)
-                    await asyncio.sleep(0.6)
-                    if len(items) < 20:
-                        break
+                # 1) Ofertas POR CATEGORÍA primero: cada una arranca sin solape con
+                #    las demás (overlap mínimo), así rinde toda su cola.
+                for cid, cname in _CATEGORIES.items():
+                    await self._scrape_listing(
+                        client, f"{_OFERTAS}?category={cid}", _MAX_PAGES_CAT,
+                        cname, seen, all_products,
+                    )
+                # 2) Ofertas generales destacadas como catch-all (lo que no salió
+                #    en ninguna categoría).
+                await self._scrape_listing(
+                    client, _OFERTAS, _MAX_PAGES, "Ofertas", seen, all_products
+                )
         except Exception as exc:
             raise ScraperError(f"MercadoLibre get_category error: {exc}") from exc
         return all_products

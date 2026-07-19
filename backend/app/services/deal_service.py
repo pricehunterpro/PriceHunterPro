@@ -13,7 +13,16 @@ from app.core.config import get_settings
 settings = get_settings()
 
 _sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
-_engine = create_engine(_sync_url, pool_pre_ping=True)
+# statement_timeout=600s: el default de Supabase (2 min) cancela las escrituras
+# masivas de tiendas grandes (Falabella tras arreglar la paginación: ~11k filas
+# en el bulk-update de `products` + el UPDATE de in_stock con un array grande).
+# 10 min da margen holgado; las lecturas son rápidas y no se ven afectadas.
+_engine = create_engine(
+    _sync_url,
+    pool_pre_ping=True,
+    pool_recycle=1800,                          # recicla conexiones antes de que el pooler de Supabase las corte (evita SSL EOF)
+    executemany_mode="values_plus_batch",       # bulk insert/update en pocas sentencias, no miles de round-trips
+)
 
 # Caché en memoria de los items. La data solo cambia cuando corre un scrape
 # (pocas veces al día), así que un TTL corto evita re-consultar ~11k filas en
@@ -80,7 +89,7 @@ class DealService:
                       AND sp.current_price < 100000     -- oculta productos con precio corrupto
                       AND sp.in_stock = true
                     ORDER BY sp.discount_percentage DESC NULLS LAST
-                    LIMIT 20000
+                    LIMIT 50000
                 """)).fetchall()
 
                 if not rows:

@@ -178,13 +178,26 @@ class FalabellaScraper(BaseScraper):
                 for slug in _CATEGORY_SLUGS:
                     raw = slug.split("/")[-1]
                     cat_name = raw.replace("-y-", " y ").replace("-", " ").title()
+                    seen_skus: set[str] = set()
                     for page_num in range(1, _MAX_PAGES + 1):
-                        # sortBy breaks server-side rendering — omit it; DealService sorts client-side
-                        url = f"{_BASE}{slug}?currentPage={page_num}"
+                        # OJO: el parámetro de paginación real es `page`, NO `currentPage`.
+                        # Con `currentPage` el sitio devolvía SIEMPRE la página 1 → las
+                        # páginas 2..N eran duplicados que colapsaban a ~1 página útil por
+                        # categoría (inflaba `saved` ~6x sin aportar productos). sortBy
+                        # rompe el SSR — se omite; DealService ordena en cliente.
+                        url = f"{_BASE}{slug}?page={page_num}"
                         data = await _get_next_data(client, url)
                         results = (data.get("props") or {}).get("pageProps", {}).get("results") or []
                         if not results:
                             break
+                        # Guarda anti-bucle: si la página no trae SKUs nuevos (el sitio
+                        # volvió a la 1 al pasarnos del total), dejamos de paginar.
+                        page_skus = {
+                            str(r.get("skuId") or r.get("productId") or "") for r in results
+                        }
+                        if page_skus and page_skus <= seen_skus:
+                            break
+                        seen_skus |= page_skus
                         items = _products_from_results(results, cat_name)
                         all_products.extend(items)
                         # Stop paginating if we got a partial page

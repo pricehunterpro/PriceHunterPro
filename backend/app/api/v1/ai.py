@@ -36,7 +36,7 @@ def score_opportunities(
         sort="discount",
         min_discount=min_discount,
         page=1,
-        limit=5000,
+        limit=50000,
     )
     items: list[dict[str, Any]] = raw["items"]
 
@@ -76,7 +76,7 @@ def score_opportunities(
     start = (page - 1) * limit
     page_items = scored[start: start + limit]
 
-    all_raw = _deal_service.get_deals(page=1, limit=5000)
+    all_raw = _deal_service.get_deals(page=1, limit=50000)
     all_items = all_raw["items"]
 
     return {
@@ -112,7 +112,7 @@ def ranking(
 
     raw = _deal_service.get_deals(
         stores=stores, categories=categories, sort="discount",
-        min_discount=0, page=1, limit=5000,
+        min_discount=0, page=1, limit=50000,
     )
     items: list[dict[str, Any]] = raw["items"]
 
@@ -176,7 +176,7 @@ def ranking(
     start = (page - 1) * limit
     page_items = scored[start: start + limit]
 
-    all_items = _deal_service.get_deals(page=1, limit=5000)["items"]
+    all_items = _deal_service.get_deals(page=1, limit=50000)["items"]
 
     return {
         "items": page_items,

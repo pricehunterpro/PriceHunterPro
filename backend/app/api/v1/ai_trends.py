@@ -20,7 +20,8 @@ router = APIRouter(prefix="/ai", tags=["ai-trends"])
 _deal_service = DealService()
 
 # Caché corta del dataset puntuado: las 6 secciones consultan casi a la vez,
-# así el scoring de ~5000 items se hace una sola vez por combinación de filtros.
+# así el scoring de ~todo el catálogo in_stock se hace una sola vez por
+# combinación de filtros.
 _CACHE_TTL = 60
 _cache: dict[str, Any] = {"key": None, "ts": 0.0, "data": None}
 
@@ -33,7 +34,7 @@ def _scored(stores, categories, brand, min_score) -> list[dict[str, Any]]:
 
     raw = _deal_service.get_deals(
         stores=stores, categories=categories, sort="discount",
-        min_discount=0, page=1, limit=5000,
+        min_discount=0, page=1, limit=50000,
     )
     brand_l = (brand or "").lower()
     out: list[dict[str, Any]] = []
@@ -96,7 +97,7 @@ def trends(
         "scorePromedio":         round(sum(d["score"] for d in items) / n, 1),
     }
 
-    all_items = _deal_service.get_deals(page=1, limit=5000)["items"]
+    all_items = _deal_service.get_deals(page=1, limit=50000)["items"]
     filters = {
         "stores":     sorted({i["store"] for i in all_items if i.get("store")}),
         "categories": sorted({i["category"] for i in all_items if i.get("category")}),

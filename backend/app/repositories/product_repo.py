@@ -4,7 +4,7 @@ import re
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models import PriceHistory, Product, ScrapingLog, StoreProduct
@@ -16,11 +16,30 @@ def _normalize_sku(name: str, brand: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", base).strip("-")[:100]
 
 
+# Tamaño de lote para las escrituras masivas. Supabase impone statement_timeout=2min
+# por sentencia; un bulk_update de ~10k filas (p. ej. Falabella tras arreglar la
+# paginación) lo excede y se cancela. Escribir en lotes mantiene cada sentencia
+# muy por debajo del límite y acorta los locks sobre `products`.
+_WRITE_CHUNK = 500
+
+
+def _chunks(seq: list, n: int = _WRITE_CHUNK):
+    for i in range(0, len(seq), n):
+        yield seq[i:i + n]
+
+
 def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct]) -> tuple[int, int, list[str]]:
     """Upsert masivo de una tienda: precarga los mapas existentes en memoria
     (2 queries) y escribe todo en lote (bulk insert/update). Reemplaza el
     patrón fila-por-fila, que sobre una BD remota (Supabase) hacía miles de
     round-trips y tardaba horas. Devuelve (saved, errors, seen_ids)."""
+    # 0) Ampliar el statement_timeout SOLO para esta transacción. El pooler de
+    #    Supabase ignora el `options` de connect_args, así que el default de 2 min
+    #    seguía cancelando el bulk-update + UPDATE in_stock de tiendas grandes
+    #    (Falabella ~11k filas). SET LOCAL sí pasa por el pooler y aplica a toda
+    #    la transacción (bulk_upsert + UPDATE in_stock + log van juntos).
+    session.execute(text("SET LOCAL statement_timeout = '600s'"))
+
     # 1) Precargar en memoria (2 queries en vez de 2 por producto)
     existing_prod: dict[str, dict] = {
         sku: {"id": pid, "name": name, "brand": brand, "category": category, "image_url": image_url}
@@ -114,19 +133,20 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
         except Exception:
             errors += 1
 
-    # 2) Escrituras masivas (pocas queries). Orden: productos -> store_products
-    #    (flush para FK) -> updates -> price_history.
-    if new_products:
-        session.bulk_insert_mappings(Product, new_products)
-    if product_updates:
-        session.bulk_update_mappings(Product, product_updates)
-    if new_sps:
-        session.bulk_insert_mappings(StoreProduct, new_sps)
+    # 2) Escrituras masivas EN LOTES. Orden: productos -> store_products (flush
+    #    para FK) -> updates -> price_history. El lote evita que una sola sentencia
+    #    supere el statement_timeout de Supabase con volúmenes altos.
+    for batch in _chunks(new_products):
+        session.bulk_insert_mappings(Product, batch)
+    for batch in _chunks(product_updates):
+        session.bulk_update_mappings(Product, batch)
+    for batch in _chunks(new_sps):
+        session.bulk_insert_mappings(StoreProduct, batch)
     session.flush()
-    if sp_updates:
-        session.bulk_update_mappings(StoreProduct, sp_updates)
-    if price_rows:
-        session.bulk_insert_mappings(PriceHistory, price_rows)
+    for batch in _chunks(sp_updates):
+        session.bulk_update_mappings(StoreProduct, batch)
+    for batch in _chunks(price_rows):
+        session.bulk_insert_mappings(PriceHistory, batch)
 
     return saved, errors, seen_ids
 
