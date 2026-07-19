@@ -25,6 +25,14 @@ _CATEGORY_SLUGS = [
     "/category/cat40556/Videojuegos",
     "/category/cat1830468/Smartwatch-y-wearables",
     "/category/cat3180533/Impresoras",
+    # Computación — subcategorías que faltaban (viven bajo Computadoras/cat50678,
+    # que solo con 5 páginas no alcanzaba; aquí p. ej. está el marketplace de
+    # soportes/periféricos que antes no capturábamos).
+    "/category/cat40509/Accesorios-Computacion-y-Perifericos",
+    "/category/cat40695/Monitores",
+    "/category/cat40480/Almacenamiento",
+    "/category/cat16470475/Computadores-de-escritorio",
+    "/category/cat1590484/All-in-one",
     # Electrohogar
     "/category/CATG19032/Refrigeracion",
     "/category/cat780522/Lavadoras",
