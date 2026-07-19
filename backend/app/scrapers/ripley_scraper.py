@@ -18,7 +18,20 @@ _MAX_PAGES = 6
 _CATEGORY_SLUGS = [
     ("/tecnologia",          "Tecnología"),
     ("/celulares",           "Celulares"),
-    ("/electrohogar",        "Electrohogar"),
+    # Electrohogar: la categoría MADRE sí pagina (offset avanza) → da profundidad.
+    # Las SUBcategorías NO paginan (Ripley devuelve siempre la pág 1, ~53 items) →
+    # se usan para garantizar SPREAD por tipo de electrodoméstico (refrigeración,
+    # lavado, etc., que en la madre quedaban sub-representados). Combinadas +
+    # dedup global = mejor cobertura. La guarda "corta si no hay nuevos" evita que
+    # las subcategorías (sin paginación) gasten páginas repetidas.
+    ("/electrohogar",                    "Electrohogar"),
+    ("/electrohogar/refrigeracion",      "Refrigeración"),
+    ("/electrohogar/lavado",             "Lavado"),
+    ("/electrohogar/cocina",             "Cocina"),
+    ("/electrohogar/climatizacion",      "Climatización"),
+    ("/electrohogar/electrodomesticos",  "Electrodomésticos"),
+    ("/electrohogar/cuidado-personal",   "Cuidado Personal"),
+    ("/electrohogar/limpieza-del-hogar", "Limpieza del Hogar"),
     ("/hogar",               "Hogar"),
     ("/hogar/ropa-de-cama",  "Ropa de Cama"),
     ("/dormitorio",          "Dormitorio"),
@@ -181,7 +194,9 @@ class RipleyScraper(BaseScraper):
                         new_items = [i for i in items if i.store_sku not in seen_skus]
                         seen_skus.update(i.store_sku for i in new_items)
                         all_products.extend(new_items)
-                        if len(items) < 10:
+                        # Corta si la página no trae SKUs nuevos (subcategoría que no
+                        # pagina → repite la pág 1) o si es una página parcial (última).
+                        if not new_items or len(items) < 10:
                             break
         except Exception as exc:
             raise ScraperError(f"Ripley get_category error: {exc}") from exc
