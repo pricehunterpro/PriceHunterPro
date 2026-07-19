@@ -59,7 +59,11 @@ class DealService:
                     WITH hist AS (
                         SELECT
                             store_product_id,
-                            AVG(price)  AS avg_hist_price,
+                            -- MEDIANA (no promedio): un solo registro corrupto que pase el
+                            -- filtro <100k (p.ej. S/99.349 en unos audífonos) disparaba el
+                            -- AVG a S/20.149 y mostraba "PROM. HISTÓRICO" absurdo + "98% bajo
+                            -- mercado" falso. La mediana es inmune a esos outliers.
+                            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS avg_hist_price,
                             COUNT(*)    AS hist_count
                         FROM price_history
                         WHERE price > 0
