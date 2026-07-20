@@ -93,7 +93,10 @@ class DealService:
                       AND sp.current_price < 100000     -- oculta productos con precio corrupto
                       AND sp.in_stock = true
                     ORDER BY sp.discount_percentage DESC NULLS LAST
-                    LIMIT 50000
+                    -- Con Shopstar (24.8k in_stock) el universo pasó de ~34k a ~59k y el
+                    -- LIMIT 50000 recortaba ~9.2k productos en silencio (los de menor
+                    -- descuento, por el ORDER BY). Se sube con margen para crecer.
+                    LIMIT 120000
                 """)).fetchall()
 
                 if not rows:
