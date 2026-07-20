@@ -58,30 +58,45 @@ def _default_config() -> dict:
     }
 
 
-def _seed() -> list[dict]:
+def _nuevo(store: str, nombre: str, tipo: str, url: str, estado: str) -> dict:
     now = _now()
-    items = []
-    for store, nombre, tipo, url, estado in _META:
-        items.append({
-            "id": store, "store_name": nombre, "scraper_name": f"{nombre}Scraper",
-            "scraper_type": tipo, "base_url": url, "method": "GET",
-            "status": estado, "schedule": "Cada hora" if estado == "Activo" else "Manual",
-            "last_execution": None, "next_execution": None,
-            "average_time": 0.0, "max_time": 0.0, "min_time": 0.0,
-            "total_products": 0, "new_products": 0, "updated_products": 0, "errors": 0,
-            "consecutive_failures": 0,
-            "configuration_json": _default_config(),
-            "created_at": now, "updated_at": now,
-        })
+    return {
+        "id": store, "store_name": nombre, "scraper_name": f"{nombre}Scraper",
+        "scraper_type": tipo, "base_url": url, "method": "GET",
+        "status": estado, "schedule": "Cada hora" if estado == "Activo" else "Manual",
+        "last_execution": None, "next_execution": None,
+        "average_time": 0.0, "max_time": 0.0, "min_time": 0.0,
+        "total_products": 0, "new_products": 0, "updated_products": 0, "errors": 0,
+        "consecutive_failures": 0,
+        "configuration_json": _default_config(),
+        "created_at": now, "updated_at": now,
+    }
+
+
+def _seed() -> list[dict]:
+    items = [_nuevo(*meta) for meta in _META]
     _r().set(_KEY, json.dumps(items, default=str))
     return items
 
 
 def _all() -> list[dict]:
+    """Devuelve el registro, incorporando los scrapers de _META que aún no estén.
+
+    El registro vive en Redis y antes solo se sembraba con la key vacía, así que
+    un scraper nuevo no aparecía nunca en un entorno ya arrancado (había que
+    borrar la key a mano). Se reconcilia contra _META en cada lectura, sin tocar
+    las entradas existentes para no pisar lo que el usuario haya configurado.
+    """
     raw = _r().get(_KEY)
     if not raw:
         return _seed()
-    return json.loads(raw)
+    items = json.loads(raw)
+    conocidos = {it.get("id") for it in items}
+    faltantes = [_nuevo(*meta) for meta in _META if meta[0] not in conocidos]
+    if faltantes:
+        items.extend(faltantes)
+        _r().set(_KEY, json.dumps(items, default=str))
+    return items
 
 
 def _save(items: list[dict]) -> None:

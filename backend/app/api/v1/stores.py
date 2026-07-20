@@ -47,26 +47,41 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _seed() -> list[dict]:
+def _nuevo(sid: str, nombre: str, dominio: str, tipo: str, cat: str, color: str) -> dict:
     now = _now()
-    items = []
-    for sid, nombre, dominio, tipo, cat, color in _META:
-        items.append({
-            "id": sid, "nombre": nombre, "logo": nombre[:1].upper(), "dominio": dominio,
-            "tipo": tipo, "scraper_asociado": sid, "estado": "Activo" if sid != "tottus" else "Inactivo",
-            "color": color, "categoria": cat, "url": f"https://www.{dominio}",
-            "frecuencia": "Cada hora" if sid != "tottus" else "Manual",
-            "created_at": now, "updated_at": now,
-        })
+    return {
+        "id": sid, "nombre": nombre, "logo": nombre[:1].upper(), "dominio": dominio,
+        "tipo": tipo, "scraper_asociado": sid, "estado": "Activo" if sid != "tottus" else "Inactivo",
+        "color": color, "categoria": cat, "url": f"https://www.{dominio}",
+        "frecuencia": "Cada hora" if sid != "tottus" else "Manual",
+        "created_at": now, "updated_at": now,
+    }
+
+
+def _seed() -> list[dict]:
+    items = [_nuevo(*meta) for meta in _META]
     _r().set(_KEY, json.dumps(items, default=str))
     return items
 
 
 def _all() -> list[dict]:
+    """Devuelve el registro, incorporando las tiendas de _META que aún no estén.
+
+    El registro vive en Redis y antes solo se sembraba con la key vacía, así que
+    una tienda nueva no aparecía nunca en un entorno ya arrancado (había que
+    borrar la key a mano). Se reconcilia contra _META en cada lectura, sin tocar
+    las entradas existentes para no pisar lo que el usuario haya configurado.
+    """
     raw = _r().get(_KEY)
     if not raw:
         return _seed()
-    return json.loads(raw)
+    items = json.loads(raw)
+    conocidos = {it.get("id") for it in items}
+    faltantes = [_nuevo(*meta) for meta in _META if meta[0] not in conocidos]
+    if faltantes:
+        items.extend(faltantes)
+        _r().set(_KEY, json.dumps(items, default=str))
+    return items
 
 
 def _save(items: list[dict]) -> None:
