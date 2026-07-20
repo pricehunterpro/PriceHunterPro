@@ -14,7 +14,7 @@ _MID_ROTATION = {
     "herramientas", "jardinería", "jardineria", "cocina",
 }
 _TOP_STORES  = {"falabella", "ripley", "plazavea", "tottus"}
-_MID_STORES  = {"oechsle", "promart", "hiraoka"}
+_MID_STORES  = {"oechsle", "promart", "hiraoka", "shopstar"}
 
 
 def calculate_score(deal: dict[str, Any]) -> dict[str, Any]:

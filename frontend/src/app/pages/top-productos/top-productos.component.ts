@@ -137,6 +137,7 @@ export class TopProductosComponent implements OnInit {
       falabella: 'store-falabella', ripley: 'store-ripley', plazavea: 'store-plazavea',
       oechsle: 'store-oechsle', tottus: 'store-tottus', estilos: 'store-estilos',
       sodimac: 'store-sodimac', mercadolibre: 'store-mercadolibre',
+      shopstar: 'store-shopstar',
     };
     return m[store] ?? 'store-default';
   }

@@ -33,6 +33,7 @@ STORE_COLORS = {
     "hiraoka":   ( 16, 185, 129),
     "estilos":   (236,  72, 153),
     "sodimac":   (255, 107,   0),
+    "shopstar":  (  0, 184, 169),
 }
 STORE_DISPLAY = {
     "falabella": "FALABELLA",
@@ -44,6 +45,7 @@ STORE_DISPLAY = {
     "hiraoka":   "HIRAOKA",
     "estilos":   "ESTILOS",
     "sodimac":   "SODIMAC",
+    "shopstar":  "SHOPSTAR",
 }
 
 LOGO_PATH = "/assets/logos/logo-completo.png"

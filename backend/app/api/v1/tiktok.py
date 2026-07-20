@@ -13,6 +13,7 @@ _STORE_TAGS: dict[str, str] = {
     "falabella": "#falabella", "ripley": "#ripley",
     "plazavea": "#plazavea", "oechsle": "#oechsle",
     "sodimac": "#sodimac", "estilos": "#estilos",
+    "shopstar": "#shopstar",
 }
 _PLANTILLAS = ["Flash Sale", "Mega Oferta", "Gaming", "Tecnología", "Hogar", "Top Oferta del Día"]
 

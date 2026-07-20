@@ -127,7 +127,7 @@ export class HistorialComponent implements OnInit {
 
   money(v: number): string { return `S/ ${(v ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
   storeBadge(s: string): string {
-    const m: Record<string, string> = { falabella: 'store-falabella', ripley: 'store-ripley', plazavea: 'store-plazavea', oechsle: 'store-oechsle', tottus: 'store-tottus', estilos: 'store-estilos', sodimac: 'store-sodimac', mercadolibre: 'store-mercadolibre' };
+    const m: Record<string, string> = { falabella: 'store-falabella', ripley: 'store-ripley', plazavea: 'store-plazavea', oechsle: 'store-oechsle', tottus: 'store-tottus', estilos: 'store-estilos', sodimac: 'store-sodimac', mercadolibre: 'store-mercadolibre', shopstar: 'store-shopstar' };
     return m[s] ?? 'store-default';
   }
   varClass(v: number): string { return v < -0.5 ? 'v-down' : v > 0.5 ? 'v-up' : 'v-eq'; }

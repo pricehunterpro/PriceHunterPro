@@ -32,6 +32,7 @@ _META = [
     ("estilos",      "Estilos",       "estilos.com.pe",       "VTEX",     "Moda",                  "#ec4899"),
     ("sodimac",      "Sodimac",       "sodimac.com.pe",       "Requests", "Mejoramiento del hogar","#ff6b00"),
     ("mercadolibre", "Mercado Libre", "mercadolibre.com.pe",  "Requests", "Marketplace",           "#ffe036"),
+    ("shopstar",     "Shopstar",      "shopstar.pe",          "VTEX",     "Marketplace",           "#00b8a9"),
     ("tottus",       "Tottus",        "tottus.com.pe",        "VTEX",     "Supermercado",          "#3c64c8"),
 ]
 
