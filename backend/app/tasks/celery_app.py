@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import traceback
 
 from celery import Celery
@@ -118,9 +119,15 @@ def _run_scrape_all_stores() -> dict:
 
     _push_log(r_log, "CeleryBeat", f"Scrape iniciado ({len(scrapers)} tiendas)", "info")
 
+    # La consola de Scrapers lee "ÚLT. EJEC." y "DURAC." del registro en Redis, que
+    # antes solo escribía la ejecución manual desde la UI. Se registra también acá
+    # para que el scrape programado se refleje en la consola.
+    from app.api.v1.scrapers import registrar_ejecucion
+
     for scraper in scrapers:
         store = getattr(scraper, "store", type(scraper).__name__)
         store_label = store.capitalize() + "Scraper"
+        _t0 = time.time()
         try:
             from sqlalchemy import text as sql_text
             products = asyncio.run(scraper.get_category())
@@ -145,12 +152,20 @@ def _run_scrape_all_stores() -> dict:
             sev = "warning" if saved < 300 else "info"
             suffix = " (bajo promedio)" if saved < 300 else ""
             _push_log(r_log, store_label, f"{saved:,} productos guardados{suffix}", sev)
+            try:
+                registrar_ejecucion(store, True, saved, errors, round(time.time() - _t0, 1))
+            except Exception:
+                pass  # la consola es informativa: no debe tumbar el scrape
         except Exception as exc:
             with Session(_engine) as session:
                 log_scraping(session, store, "error", error=str(exc))
                 session.commit()
             results[store] = {"status": "error", "error": str(exc), "trace": traceback.format_exc()[-500:]}
             _push_log(r_log, store_label, f"Error: {str(exc)[:100]}", "error")
+            try:
+                registrar_ejecucion(store, False, 0, 0, round(time.time() - _t0, 1), str(exc)[:300])
+            except Exception:
+                pass
 
     # Notificar nuevas alertas por Telegram al finalizar todos los scrapers
     try:

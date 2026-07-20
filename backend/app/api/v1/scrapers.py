@@ -253,6 +253,48 @@ def _record_run(store: str, run: dict) -> None:
     r.set(f"scraper:runs:{store}", json.dumps(runs[:20], default=str))
 
 
+def registrar_ejecucion(
+    store: str, ok: bool, saved: int, errors: int, duration: float, err_msg: str = "",
+) -> None:
+    """Deja constancia de una corrida en el registro de la consola de Scrapers.
+
+    La usan tanto la ejecución manual desde la UI como el scrape de Celery. Antes
+    solo la escribía la manual, así que la consola mostraba "ÚLT. EJEC." con la
+    fecha del último clic en ▶ (o "—" en las tiendas que nunca se corrieron a mano)
+    aunque el scrape programado se hubiera ejecutado hace minutos.
+    """
+    items = _all()
+    it = next((i for i in items if i["id"] == store), None)
+    if it:
+        it["last_execution"] = _now()
+        it["errors"] = errors if ok else it.get("errors", 0) + 1
+        if ok:
+            it["new_products"] = saved
+            it["consecutive_failures"] = 0
+            it["status"] = "Activo" if it["status"] != "Deshabilitado" else it["status"]
+            # tiempos
+            prev = it.get("average_time", 0) or 0
+            it["average_time"] = round((prev + duration) / 2, 1) if prev else duration
+            it["max_time"] = max(it.get("max_time", 0) or 0, duration)
+            it["min_time"] = duration if not it.get("min_time") else min(it["min_time"], duration)
+        else:
+            it["consecutive_failures"] = it.get("consecutive_failures", 0) + 1
+            if it["consecutive_failures"] >= 3:
+                it["status"] = "Error"
+                _push_monitor(it["store_name"] + "Scraper",
+                              f"{it['store_name']}: 3 fallos consecutivos, scraper en Error", "error")
+            else:
+                it["status"] = "Activo" if it["status"] not in ("Deshabilitado",) else it["status"]
+        it["updated_at"] = _now()
+        _save(items)
+
+    _record_run(store, {
+        "fecha": _now(), "duracion": duration,
+        "productos": saved if ok else 0, "errores": errors if ok else 1,
+        "estado": "success" if ok else "error", "mensaje": err_msg,
+    })
+
+
 def _run_scraper_bg(store: str) -> None:
     from sqlalchemy import text as sql_text
     from sqlalchemy.orm import Session
@@ -284,38 +326,7 @@ def _run_scraper_bg(store: str) -> None:
             pass
 
     duration = round(_time.time() - start, 1)
-
-    # Actualizar registro
-    items = _all()
-    it = next((i for i in items if i["id"] == store), None)
-    if it:
-        it["last_execution"] = _now()
-        it["errors"] = errors if ok else it.get("errors", 0) + 1
-        if ok:
-            it["new_products"] = saved
-            it["consecutive_failures"] = 0
-            it["status"] = "Activo" if it["status"] != "Deshabilitado" else it["status"]
-            # tiempos
-            prev = it.get("average_time", 0) or 0
-            it["average_time"] = round((prev + duration) / 2, 1) if prev else duration
-            it["max_time"] = max(it.get("max_time", 0) or 0, duration)
-            it["min_time"] = duration if not it.get("min_time") else min(it["min_time"], duration)
-        else:
-            it["consecutive_failures"] = it.get("consecutive_failures", 0) + 1
-            if it["consecutive_failures"] >= 3:
-                it["status"] = "Error"
-                _push_monitor(it["store_name"] + "Scraper",
-                              f"{it['store_name']}: 3 fallos consecutivos, scraper en Error", "error")
-            else:
-                it["status"] = "Activo" if it["status"] not in ("Deshabilitado",) else it["status"]
-        it["updated_at"] = _now()
-        _save(items)
-
-    _record_run(store, {
-        "fecha": _now(), "duracion": duration,
-        "productos": saved if ok else 0, "errores": errors if ok else 1,
-        "estado": "success" if ok else "error", "mensaje": err_msg,
-    })
+    registrar_ejecucion(store, ok, saved, errors, duration, err_msg)
     r.delete(f"scraper:lock:{store}")
 
 
