@@ -17,6 +17,7 @@ STORE_EMOJI: dict[str, str] = {
     "promart":   "🟠",
     "tottus":    "🔵",
     "hiraoka":   "🟩",
+    "shopstar":  "🟦",
 }
 
 HASHTAGS = "#OfertasPeru #PriceHunterPro #DescuentosPeru #GangasPeru"

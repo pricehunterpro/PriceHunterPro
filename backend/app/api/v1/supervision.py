@@ -32,6 +32,7 @@ CANALES = ["Telegram", "Facebook", "Instagram", "TikTok"]
 _STORE_TAGS: dict[str, str] = {
     "falabella": "#falabella", "ripley": "#ripley", "plazavea": "#plazavea",
     "oechsle": "#oechsle", "sodimac": "#sodimac", "estilos": "#estilos",
+    "shopstar": "#shopstar",
 }
 
 

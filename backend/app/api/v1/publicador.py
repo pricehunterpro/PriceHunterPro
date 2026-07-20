@@ -27,6 +27,7 @@ CANALES = ["Telegram", "Facebook", "Instagram", "TikTok"]
 _STORE_TAGS: dict[str, str] = {
     "falabella": "#Falabella", "ripley": "#Ripley", "plazavea": "#PlazaVea",
     "oechsle": "#Oechsle", "sodimac": "#Sodimac", "estilos": "#Estilos",
+    "shopstar": "#Shopstar",
 }
 
 
@@ -115,18 +116,53 @@ def _seed_items() -> list[dict]:
     )
     engine = create_engine(db_url)
     with Session(engine) as session:
+        # Los candidatos usan los MISMOS guards anti-basura que el pipeline de alertas
+        # (ver _notify_new_alerts en tasks/celery_app.py). Sin ellos, ordenar por
+        # descuento traía siempre los mismos productos de iluminación con
+        # original_price corrupto (S/500 -> S/20, ratio 25x = -96%), que copaban el
+        # top-16 de forma determinista sobre ~25k candidatos.
+        # El dedup va por NOMBRE normalizado, no por p.id ni por sku_normalized: el mismo
+        # producto existe como filas distintas por tienda y con sku_normalized distinto
+        # (p.ej. "Rejilla adosable..." = 'gen-rico-...' en una tienda y 'sm-...' en otra),
+        # así que agrupar por id/sku lo seguía mostrando dos veces.
+        # El tope de 2 por categoría da variedad: sin él, ordenar por descuento traía
+        # 7 "Lentes Invicta" casi idénticos y una pared de iluminación.
+        # El descuento se CALCULA; no se confía en el campo discount_percentage.
         rows = session.execute(text("""
-            SELECT p.id, p.name, sp.store, p.category,
-                   CAST(sp.current_price        AS float) AS cp,
-                   CAST(sp.original_price       AS float) AS op,
-                   CAST(sp.discount_percentage  AS float) AS disc,
-                   p.image_url, sp.url
-            FROM store_products sp
-            JOIN products p ON p.id = sp.product_id
-            WHERE sp.in_stock = true
-              AND sp.discount_percentage >= 25
-              AND sp.current_price >= 15
-            ORDER BY sp.discount_percentage DESC
+            WITH mejores AS (
+                SELECT DISTINCT ON (lower(btrim(p.name)))
+                       p.id, p.name, sp.store,
+                       COALESCE(NULLIF(p.category, ''), 'General') AS category,
+                       sp.current_price, sp.original_price,
+                       p.image_url, sp.url
+                FROM store_products sp
+                JOIN products p ON p.id = sp.product_id
+                WHERE sp.in_stock = true
+                  AND sp.current_price  >= 50                         -- mínimo S/50 actual
+                  AND sp.original_price >= 100                        -- mínimo S/100 original
+                  AND (sp.original_price - sp.current_price) >= 100   -- ahorro real >= S/100
+                  AND sp.original_price < 100000                      -- guard anti parsing corrupto
+                  AND sp.original_price < sp.current_price * 10       -- descarta ratios absurdos
+                  AND (sp.original_price - sp.current_price) / sp.original_price >= 0.25
+                ORDER BY lower(btrim(p.name)), sp.current_price ASC   -- por producto, la tienda más barata
+            ),
+            rankeadas AS (
+                SELECT *,
+                       (original_price - current_price) / original_price AS disc_frac,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY category
+                           ORDER BY (original_price - current_price) / original_price DESC
+                       ) AS rn_cat
+                FROM mejores
+            )
+            SELECT id, name, store, category,
+                   CAST(current_price  AS float) AS cp,
+                   CAST(original_price AS float) AS op,
+                   CAST(disc_frac * 100 AS float) AS disc,
+                   image_url, url
+            FROM rankeadas
+            WHERE rn_cat <= 2                                          -- máx 2 por categoría
+            ORDER BY disc_frac DESC
             LIMIT 16
         """)).fetchall()
 
