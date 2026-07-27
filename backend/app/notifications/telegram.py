@@ -30,17 +30,23 @@ def _build_caption(deal: dict[str, Any]) -> str:
     original = deal.get("originalPrice", 0)
     current = deal.get("currentPrice", 0)
     discount = deal.get("discountPct", 0)
-    margin = deal.get("marginPct", 0)
-    savings = round(original - current, 2)
     url = deal.get("url", "")
 
+    # Titular estilo SUPERCUPON: PRODUCTO + PRECIO FINAL (lo que engancha), y el
+    # antes/descuento de refuerzo. El nombre se recorta para que el gancho no se
+    # pierda en fichas técnicas larguísimas.
+    corto = name[:52] + ("…" if len(name) > 52 else "")
+    if current <= 5:
+        gancho = f"🚨 *{corto} ¡a solo S/ {current:.2f}!*"
+    elif current < 1000:
+        gancho = f"🔥 *{corto} a solo S/ {current:.0f}*"
+    else:
+        gancho = f"🔥 *{corto} a S/ {current:,.0f}*"
+
     return (
-        f"🔥 *OFERTÓN PRICEHUNTER PRO*\n\n"
-        f"📦 *{name}*\n\n"
-        f"💰 Antes: ~~S/ {original:.2f}~~\n"
-        f"✅ *Ahora: S/ {current:.2f}*\n"
-        f"📉 Descuento: *{discount:.0f}%*\n"
-        f"{store_icon} Tienda: *{store_name}*\n\n"
+        f"{gancho}\n\n"
+        f"💰 Antes ~~S/ {original:.2f}~~ → *S/ {current:.2f}*  ·  *-{discount:.0f}%*\n"
+        f"{store_icon} {store_name}\n\n"
         f"🔗 [Ver oferta]({url})\n\n"
         f"⏳ _Precio sujeto a stock o cambios._\n\n"
         f"{HASHTAGS}"

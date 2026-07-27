@@ -62,43 +62,42 @@ def _generar_contenido(
     canal: str, name: str, store: str, category: str,
     current: float, original: float, disc: int, url: str,
 ) -> str:
-    tag_store = _STORE_TAGS.get(store, f"#{store.capitalize()}")
+    # Copy estilo SUPERCUPON: el TITULAR es el PRODUCTO + PRECIO FINAL (lo que
+    # engancha: "iPhone 17e a S/599"), no el "% OFF DETECTADO". El precio tachado
+    # y el % quedan de refuerzo, debajo.
+    from app.services.deal_ranker import titular
     cat_slug = (category or "general").lower()
-    titulo = name[:60] + ("…" if len(name) > 60 else "")
+    gancho = titular(name, current, disc)          # "🔥 {Producto} a solo S/ X"
     hashtags_line = " ".join(_hashtags(store, category, disc))
 
     if canal == "Telegram":
         return (
-            f"🔥 ¡{disc}% OFF DETECTADO!\n\n"
-            f"**{titulo}**\n\n"
-            f"~~S/{original:.2f}~~ → **S/{current:.2f}**\n\n"
+            f"{gancho}\n\n"
+            f"~~S/{original:.2f}~~ → **S/{current:.2f}**  ·  **-{disc}%**\n"
             f"🏪 {store.capitalize()} | 📂 {cat_slug.capitalize()}\n"
             f"👉 Link en este mensaje 👇\n\n"
             f"{hashtags_line}"
         )
     if canal == "Instagram":
         return (
-            f"🔥 ¡{disc}% OFF!\n\n"
-            f"{titulo}\n\n"
-            f"Antes S/{original:.2f} → AHORA S/{current:.2f}\n\n"
+            f"{gancho}\n\n"
+            f"Antes S/{original:.2f} → AHORA S/{current:.2f}  (-{disc}%)\n"
             f"📍 {store.capitalize()} | {cat_slug.capitalize()}\n"
             f"👉 Link en bio 🔗\n\n"
             f"{hashtags_line} #instagram"
         )
     if canal == "TikTok":
         return (
-            f"🔥 {disc}% OFF — ¡OFERTA DETECTADA!\n\n"
-            f"{titulo}\n\n"
-            f"Antes S/{original:.2f} → AHORA S/{current:.2f}\n\n"
+            f"{gancho}\n\n"
+            f"Antes S/{original:.2f} → AHORA S/{current:.2f}  (-{disc}%)\n"
             f"Tienda: {store.capitalize()} 🛒\n"
             f"👉 Link en bio 👇\n\n"
             f"{hashtags_line} #tiktok #fyp #viral"
         )
     # Facebook
     return (
-        f"🔥 ¡{disc}% OFF!\n\n"
-        f"📦 {titulo}\n\n"
-        f"💰 Antes S/{original:.2f} → AHORA S/{current:.2f}\n\n"
+        f"{gancho}\n\n"
+        f"💰 Antes S/{original:.2f} → AHORA S/{current:.2f}  (-{disc}%)\n"
         f"🏪 Disponible en {store.capitalize()}\n"
         f"👉 Link en los comentarios 👇\n\n"
         f"{hashtags_line}"
@@ -106,65 +105,23 @@ def _generar_contenido(
 
 
 def _seed_items() -> list[dict]:
-    from sqlalchemy import create_engine, text
+    from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from app.core.config import get_settings
+    from app.services.deal_ranker import fetch_candidates, seleccionar_top
 
     db_url = (
         get_settings().database_url
         .replace("postgresql+asyncpg://", "postgresql+psycopg2://")
     )
     engine = create_engine(db_url)
+    # Selección estilo SUPERCUPON (app.services.deal_ranker): variedad por tramo
+    # de precio + marcas deseables + precio alcanzable primero, descartando basura
+    # (genéricos, "Lentes" spam) y deduplicando por nombre. Reemplaza el viejo
+    # "top-16 por descuento" que se llenaba de iluminación con original corrupto.
     with Session(engine) as session:
-        # Los candidatos usan los MISMOS guards anti-basura que el pipeline de alertas
-        # (ver _notify_new_alerts en tasks/celery_app.py). Sin ellos, ordenar por
-        # descuento traía siempre los mismos productos de iluminación con
-        # original_price corrupto (S/500 -> S/20, ratio 25x = -96%), que copaban el
-        # top-16 de forma determinista sobre ~25k candidatos.
-        # El dedup va por NOMBRE normalizado, no por p.id ni por sku_normalized: el mismo
-        # producto existe como filas distintas por tienda y con sku_normalized distinto
-        # (p.ej. "Rejilla adosable..." = 'gen-rico-...' en una tienda y 'sm-...' en otra),
-        # así que agrupar por id/sku lo seguía mostrando dos veces.
-        # El tope de 2 por categoría da variedad: sin él, ordenar por descuento traía
-        # 7 "Lentes Invicta" casi idénticos y una pared de iluminación.
-        # El descuento se CALCULA; no se confía en el campo discount_percentage.
-        rows = session.execute(text("""
-            WITH mejores AS (
-                SELECT DISTINCT ON (lower(btrim(p.name)))
-                       p.id, p.name, sp.store,
-                       COALESCE(NULLIF(p.category, ''), 'General') AS category,
-                       sp.current_price, sp.original_price,
-                       p.image_url, sp.url
-                FROM store_products sp
-                JOIN products p ON p.id = sp.product_id
-                WHERE sp.in_stock = true
-                  AND sp.current_price  >= 50                         -- mínimo S/50 actual
-                  AND sp.original_price >= 100                        -- mínimo S/100 original
-                  AND (sp.original_price - sp.current_price) >= 100   -- ahorro real >= S/100
-                  AND sp.original_price < 100000                      -- guard anti parsing corrupto
-                  AND sp.original_price < sp.current_price * 10       -- descarta ratios absurdos
-                  AND (sp.original_price - sp.current_price) / sp.original_price >= 0.25
-                ORDER BY lower(btrim(p.name)), sp.current_price ASC   -- por producto, la tienda más barata
-            ),
-            rankeadas AS (
-                SELECT *,
-                       (original_price - current_price) / original_price AS disc_frac,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY category
-                           ORDER BY (original_price - current_price) / original_price DESC
-                       ) AS rn_cat
-                FROM mejores
-            )
-            SELECT id, name, store, category,
-                   CAST(current_price  AS float) AS cp,
-                   CAST(original_price AS float) AS op,
-                   CAST(disc_frac * 100 AS float) AS disc,
-                   image_url, url
-            FROM rankeadas
-            WHERE rn_cat <= 2                                          -- máx 2 por categoría
-            ORDER BY disc_frac DESC
-            LIMIT 16
-        """)).fetchall()
+        candidatos = fetch_candidates(session)
+    rows = seleccionar_top(candidatos, total=16)
 
     estados_init = [
         "Pendiente", "Generado",  "Programado", "Publicado",
@@ -194,14 +151,19 @@ def _seed_items() -> list[dict]:
 
     items: list[dict] = []
     for i, row in enumerate(rows):
-        disc = int(row.disc) if row.disc else 0
+        disc = int(row.get("discountPct") or 0)
+        cp = float(row.get("currentPrice") or 0)
+        op = float(row.get("originalPrice") or 0)
+        name = row.get("name") or ""
+        store = row.get("store") or ""
+        category = row.get("category") or "General"
         canales_sel = canales_sets[i % len(canales_sets)]
         estado = estados_init[i % len(estados_init)]
         has_content = estado not in ("Pendiente", "Error")
         contenido = (
             _generar_contenido(
-                canales_sel[0], row.name or "", row.store, row.category or "General",
-                row.cp, row.op, disc, row.url or "",
+                canales_sel[0], name, store, category,
+                cp, op, disc, row.get("url") or "",
             )
             if has_content else ""
         )
@@ -218,18 +180,18 @@ def _seed_items() -> list[dict]:
             created = now - timedelta(days=(i % 6), hours=(i % 10))
         items.append({
             "id":                   str(uuid.uuid4()),
-            "opportunityId":        str(row.id),
-            "titulo":               (row.name or "")[:70],
-            "store":                row.store,
-            "category":             row.category or "General",
-            "currentPrice":         row.cp,
-            "originalPrice":        row.op,
+            "opportunityId":        str(row.get("id", "")),
+            "titulo":               name[:70],
+            "store":                store,
+            "category":             category,
+            "currentPrice":         cp,
+            "originalPrice":        op,
             "discountPct":          disc,
-            "imageUrl":             row.image_url or "",
-            "url":                  row.url or "",
+            "imageUrl":             row.get("imageUrl") or "",
+            "url":                  row.get("url") or "",
             "canalesSeleccionados": canales_sel,
             "contenido":            contenido,
-            "hashtags":             _hashtags(row.store, row.category or "General", disc),
+            "hashtags":             _hashtags(store, category, disc),
             "scoreIA":              scores[i % len(scores)],
             "estado":               estado,
             "fechaProgramada":      fecha_prog,

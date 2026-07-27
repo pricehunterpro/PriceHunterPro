@@ -53,17 +53,19 @@ def notify_new_alerts(new_alerts: list[dict], channel_id: str = "") -> bool:
         diff = alert.get("mktDiffPct", 0)
         url = alert.get("url", "")
         image_url = alert.get("imageUrl", "")
-        header = (
-            "🚨 ERROR DE PRECIO — PriceHunter Pro"
-            if alert.get("priceError")
-            else "🔥 Alerta PriceHunter Pro"
-        )
+        # Titular estilo SUPERCUPON: PRODUCTO + PRECIO FINAL primero. Los glitches
+        # ("a 1 sol") se marcan como ERROR DE PRECIO, el contenido más viral.
+        if alert.get("priceError") or price <= 5:
+            gancho = f"🚨 <b>{name} ¡a solo S/ {price:.2f}!</b>"
+        elif price < 1000:
+            gancho = f"🔥 <b>{name} a solo S/ {price:.0f}</b>"
+        else:
+            gancho = f"🔥 <b>{name} a S/ {price:,.0f}</b>"
+        etiqueta = "💥 ERROR DE PRECIO" if alert.get("priceError") else "🏷️ Oferta detectada"
         msg = (
-            f"<b>{header}</b>\n"
-            f"📦 {name}\n"
-            f"🏪 {store}\n"
-            f"💰 S/ {price:.2f} <s>S/ {avg:.2f}</s>\n"
-            f"📉 {diff}% bajo su precio histórico\n"
+            f"{gancho}\n"
+            f"💰 S/ {price:.2f} <s>S/ {avg:.2f}</s>  ·  {diff}% ↓ vs. histórico\n"
+            f"🏪 {store}   {etiqueta}\n"
             f"🔗 <a href=\"{url}\">Ver oferta</a>"
         )
         ok = _post(token, channel_id, msg, image_url)

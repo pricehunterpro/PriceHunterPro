@@ -238,6 +238,8 @@ def _notify_new_alerts(r_log=None) -> int:
                 SELECT DISTINCT ON (COALESCE(p.sku_normalized, sp.id))
                     sp.id, sp.store, p.name, sp.url,
                     COALESCE(p.image_url, '') AS image_url,
+                    COALESCE(p.brand, '')                       AS brand,
+                    COALESCE(NULLIF(p.category, ''), 'General')  AS category,
                     sp.current_price, sp.original_price,
                     sp.discount_percentage, p.sku_normalized
                 FROM store_products sp
@@ -246,7 +248,13 @@ def _notify_new_alerts(r_log=None) -> int:
                 WHERE sp.in_stock = true
                   AND sp.current_price > 0
                   AND sp.original_price > sp.current_price        -- precio original SIEMPRE mayor al actual
-                  AND sp.current_price >= 50                       -- mínimo S/50 precio actual
+                  AND (
+                        sp.current_price >= 50                     -- piso normal S/50
+                        OR (                                       -- …salvo GLITCH validado por historial ("a 1 sol")
+                            hc.hist_count >= 3 AND hc.med_hist_price > 0
+                            AND sp.current_price < hc.med_hist_price * 0.30
+                        )
+                  )
                   AND sp.original_price >= 100                     -- mínimo S/100 precio original
                   AND (sp.original_price - sp.current_price) >= 100  -- ahorro real >= S/100
                   AND sp.original_price < 100000                  -- guard absoluto anti-basura (parsing corrupto = millones)
@@ -261,7 +269,7 @@ def _notify_new_alerts(r_log=None) -> int:
                 ORDER BY COALESCE(p.sku_normalized, sp.id), sp.current_price ASC
             )
             SELECT c.id, c.store, c.name, c.url,
-                   c.image_url,
+                   c.image_url, c.brand, c.category,
                    CAST(c.current_price AS float)                          AS current_price,
                    CAST(c.original_price AS float)                         AS original_price,
                    CAST(COALESCE(
@@ -296,12 +304,14 @@ def _notify_new_alerts(r_log=None) -> int:
                  AND m.avg_market_price > 0
                  AND c.current_price < m.avg_market_price * 0.85)
             )
-            ORDER BY (
-                ((c.original_price - c.current_price) / c.original_price * 100) *
-                LEAST(CAST(c.original_price - c.current_price AS float), 3000)
-            ) DESC
-            LIMIT 100
+            -- Ordena por DESCUENTO REAL, sin el viejo `× ahorro_en_soles` que
+            -- empujaba siempre lo caro. Los glitches (is_price_error) se priorizan
+            -- luego en Python. La deseabilidad de marca también se afina en Python.
+            ORDER BY (c.original_price - c.current_price) / c.original_price DESC
+            LIMIT 150
         """)).fetchall()
+
+    from app.services.deal_ranker import es_basura, score as _desirability_score
 
     new_alerts = []
     for r_row in rows:
@@ -316,6 +326,11 @@ def _notify_new_alerts(r_log=None) -> int:
         if r_row.current_price <= 0:
             continue
 
+        # Filtro de basura: genéricos sin nombre / categorías spam (Lentes) NO se
+        # publican, salvo que el nombre traiga una marca deseable.
+        if es_basura(r_row.name, getattr(r_row, "brand", ""), getattr(r_row, "category", "")):
+            continue
+
         ref_price = r_row.avg_hist_price if r_row.avg_hist_price else 0
         diff = round((1 - r_row.current_price / ref_price) * 100, 1) if ref_price else 0
 
@@ -328,8 +343,12 @@ def _notify_new_alerts(r_log=None) -> int:
             "id":            r_row.id,
             "name":          r_row.name,
             "store":         r_row.store,
+            "brand":         getattr(r_row, "brand", "") or "",
+            "category":      getattr(r_row, "category", "") or "General",
             "imageUrl":      r_row.image_url or "",
             "currentPrice":  r_row.current_price,
+            "originalPrice": getattr(r_row, "original_price", r_row.current_price),
+            "discountPct":   round(real_disc, 1),
             "avgMarketPrice": ref_price,
             "mktDiffPct":    diff,
             "url":           r_row.url or "",
@@ -337,8 +356,10 @@ def _notify_new_alerts(r_log=None) -> int:
             "_key":          key,
         })
 
-    # Los errores de precio (glitches) van PRIMERO: son el contenido más viral.
-    new_alerts.sort(key=lambda a: not a["priceError"])
+    # Orden final: glitches (más virales) primero; dentro de cada grupo, por
+    # deseabilidad (marca reconocible + descuento + precio alcanzable), NO por
+    # ahorro en soles. Así lo alcanzable ya no queda sepultado bajo lo caro.
+    new_alerts.sort(key=lambda a: (not a["priceError"], -_desirability_score(a)))
 
     channels = [c for c in [settings.telegram_channel_dev, settings.telegram_channel_prd] if c]
     sent_count = 0
@@ -356,44 +377,34 @@ def _notify_new_alerts(r_log=None) -> int:
 
 @app.task(name="publish_top_deals")
 def publish_top_deals(limit: int = 5, min_discount: float = 40.0) -> dict:
-    """Publica los mejores deals del momento en el canal de Telegram."""
+    """Publica los mejores deals del momento en el canal de Telegram.
+
+    Selección estilo SUPERCUPON (ver app.services.deal_ranker): variedad por
+    tramo de precio + marcas deseables + precio alcanzable primero. Ya NO ordena
+    por `descuento% × ahorro_en_soles`, que solo sacaba productos de S/1500–5000.
+    """
     from app.notifications.telegram import send_deals_batch, notify_admin
-    from sqlalchemy import text
+    from app.services.deal_ranker import fetch_candidates, seleccionar_top, CUPOS_5
 
     with Session(_engine) as session:
-        rows = session.execute(text("""
-            SELECT sp.id, sp.store, p.name, p.brand, p.category,
-                   COALESCE(p.image_url, '')          AS image_url,
-                   CAST(sp.current_price  AS float)   AS current_price,
-                   CAST(sp.original_price AS float)   AS original_price,
-                   CAST(sp.discount_percentage AS float) AS discount_pct,
-                   sp.url
-            FROM store_products sp
-            JOIN products p ON p.id = sp.product_id
-            WHERE sp.in_stock = true
-              AND sp.original_price > sp.current_price
-              AND (sp.original_price - sp.current_price) / sp.original_price >= :min_discount / 100.0
-              AND sp.current_price > 0
-              AND sp.original_price > 0
-              AND (sp.original_price - sp.current_price) >= 50
-            ORDER BY (sp.original_price - sp.current_price) / sp.original_price DESC
-            LIMIT :limit
-        """), {"min_discount": min_discount, "limit": limit}).fetchall()
+        candidatos = fetch_candidates(session)
+
+    seleccion = seleccionar_top(candidatos, total=limit, cupos=CUPOS_5 if limit <= 6 else None)
 
     deals = [
         {
-            "name":          r.name,
-            "store":         r.store,
-            "brand":         r.brand or "",
-            "category":      r.category or "",
-            "imageUrl":      r.image_url,
-            "currentPrice":  r.current_price,
-            "originalPrice": r.original_price,
-            "discountPct":   r.discount_pct,
-            "marginPct":     round((r.original_price - r.current_price) / r.current_price * 100, 1) if r.current_price else 0,
-            "url":           r.url or "",
+            "name":          d["name"],
+            "store":         d["store"],
+            "brand":         d.get("brand", ""),
+            "category":      d.get("category", ""),
+            "imageUrl":      d.get("imageUrl", ""),
+            "currentPrice":  d["currentPrice"],
+            "originalPrice": d["originalPrice"],
+            "discountPct":   d["discountPct"],
+            "marginPct":     round((d["originalPrice"] - d["currentPrice"]) / d["currentPrice"] * 100, 1) if d["currentPrice"] else 0,
+            "url":           d.get("url", ""),
         }
-        for r in rows
+        for d in seleccion
     ]
 
     sent_dev = send_deals_batch(deals, channel_id=settings.telegram_channel_dev) if settings.telegram_channel_dev else 0
