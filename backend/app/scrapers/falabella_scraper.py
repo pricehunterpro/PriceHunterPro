@@ -138,6 +138,11 @@ def _products_from_results(results: list, category: str) -> list[ScrapedProduct]
                 current_price = prices_by_type[pref]
                 break
 
+        # El precio CMR se guarda APARTE del público: no reemplaza a current_price
+        # (quien no tiene la tarjeta paga el otro), pero es donde aparecen los
+        # glitches virales que antes se perdían por completo.
+        card_price = prices_by_type.get("cmrPrice")
+
         if current_price == Decimal("0"):
             continue
         if original_price < current_price:
@@ -172,6 +177,7 @@ def _products_from_results(results: list, category: str) -> list[ScrapedProduct]
             image_url=str(image_url),
             category=category,
             scraped_at=now_utc(),
+            card_price=card_price,
         ))
     return out
 

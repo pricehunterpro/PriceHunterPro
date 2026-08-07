@@ -209,6 +209,12 @@ def _notify_new_alerts(r_log=None) -> int:
 
     r = redis_lib.from_url(settings.redis_url)
 
+    # Umbrales del glitch con tarjeta: administrables desde Configuración
+    # (Alertas). `get_setting` cae al default si la BD o la clave no están.
+    from app.services.settings_service import get_setting
+    card_ratio = float(get_setting("alertas", "ratio_glitch_tarjeta", 0.5))
+    card_min_price = float(get_setting("alertas", "precio_minimo", 50))
+
     with Session(_engine) as session:
         rows = session.execute(text("""
             WITH hist AS (
@@ -240,7 +246,7 @@ def _notify_new_alerts(r_log=None) -> int:
                     COALESCE(p.image_url, '') AS image_url,
                     COALESCE(p.brand, '')                       AS brand,
                     COALESCE(NULLIF(p.category, ''), 'General')  AS category,
-                    sp.current_price, sp.original_price,
+                    sp.current_price, sp.original_price, sp.card_price,
                     sp.discount_percentage, p.sku_normalized
                 FROM store_products sp
                 JOIN products p ON p.id = sp.product_id
@@ -286,7 +292,18 @@ def _notify_new_alerts(r_log=None) -> int:
                    -- parsing; y no usa original_price = inmune a original corrupto.
                    CASE WHEN h.hist_count >= 3 AND h.med_hist_price > 0
                              AND c.current_price < h.med_hist_price * 0.30
-                        THEN true ELSE false END                          AS is_price_error
+                        THEN true ELSE false END                          AS is_price_error,
+                   CAST(COALESCE(c.card_price, 0) AS float)               AS card_price,
+                   -- GLITCH DE PRECIO CON TARJETA (CMR/Única): el precio con
+                   -- tarjeta baja de la mitad del precio público. Un descuento CMR
+                   -- normal es de 3-10% (iPad: 1.549 con tarjeta vs 1.599 internet),
+                   -- así que por debajo del 50% ya no es un beneficio de tarjeta:
+                   -- es el glitch que se viraliza. No necesita historial, lo
+                   -- confirma la propia brecha contra el precio público del momento.
+                   CASE WHEN c.card_price > 0
+                             AND c.card_price >= :card_min_price
+                             AND c.card_price < c.current_price * :card_ratio
+                        THEN true ELSE false END                          AS is_card_glitch
             FROM candidates c
             LEFT JOIN hist h ON h.store_product_id = c.id
             LEFT JOIN market m ON m.sku_normalized = c.sku_normalized
@@ -303,13 +320,21 @@ def _notify_new_alerts(r_log=None) -> int:
                 (m.store_count >= 2
                  AND m.avg_market_price > 0
                  AND c.current_price < m.avg_market_price * 0.85)
+                OR
+                -- Alerta por GLITCH CON TARJETA: entra aunque el precio público sea
+                -- aburrido. Es el caso del JVC 75" (S/599,90 con CMR contra
+                -- S/2.099,90 internet): por precio público era un -22,8% que no
+                -- pasaba ningún filtro, y era la mejor oferta del día.
+                (c.card_price > 0
+                 AND c.card_price >= :card_min_price
+                 AND c.card_price < c.current_price * :card_ratio)
             )
             -- Ordena por DESCUENTO REAL, sin el viejo `× ahorro_en_soles` que
             -- empujaba siempre lo caro. Los glitches (is_price_error) se priorizan
             -- luego en Python. La deseabilidad de marca también se afina en Python.
             ORDER BY (c.original_price - c.current_price) / c.original_price DESC
             LIMIT 150
-        """)).fetchall()
+        """), {"card_ratio": card_ratio, "card_min_price": card_min_price}).fetchall()
 
     from app.services.deal_ranker import es_basura, score as _desirability_score
 
@@ -321,7 +346,11 @@ def _notify_new_alerts(r_log=None) -> int:
 
         # Validación Python: doble chequeo de que hay descuento real
         real_disc = getattr(r_row, "real_discount_pct", 0) or 0
-        if real_disc < 10:          # menos de 10% descuento real → ignorar
+        card_glitch = bool(getattr(r_row, "is_card_glitch", False))
+        # El glitch con tarjeta se salta el piso de 10%: su gracia es justamente
+        # que el precio público puede ser aburrido (JVC 75": -22,8% público pero
+        # -78% con CMR). Sin esta excepción, el filtro lo mataría antes de mirarlo.
+        if real_disc < 10 and not card_glitch:
             continue
         if r_row.current_price <= 0:
             continue
@@ -353,13 +382,18 @@ def _notify_new_alerts(r_log=None) -> int:
             "mktDiffPct":    diff,
             "url":           r_row.url or "",
             "priceError":    bool(getattr(r_row, "is_price_error", False)),
+            "cardPrice":     float(getattr(r_row, "card_price", 0) or 0),
+            "cardGlitch":    card_glitch,
             "_key":          key,
         })
 
     # Orden final: glitches (más virales) primero; dentro de cada grupo, por
     # deseabilidad (marca reconocible + descuento + precio alcanzable), NO por
     # ahorro en soles. Así lo alcanzable ya no queda sepultado bajo lo caro.
-    new_alerts.sort(key=lambda a: (not a["priceError"], -_desirability_score(a)))
+    # El glitch con tarjeta cuenta como glitch: es el mismo tipo de gancho.
+    new_alerts.sort(
+        key=lambda a: (not (a["priceError"] or a["cardGlitch"]), -_desirability_score(a))
+    )
 
     channels = [c for c in [settings.telegram_channel_dev, settings.telegram_channel_prd] if c]
     sent_count = 0

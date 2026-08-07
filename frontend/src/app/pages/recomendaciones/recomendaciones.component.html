@@ -1,0 +1,273 @@
+<div class="rc-page">
+
+  <!-- ── Header ── -->
+  <div class="rc-header">
+    <div>
+      <h2>Recomendaciones IA <span class="rc-chip">Motor IA + Tendencias</span></h2>
+      <p>Qué conviene comprar, qué publicar primero y qué descartar hoy. Cada recomendación
+         se arma con el PriceHunter Score, el precio histórico y la tendencia de su categoría.</p>
+    </div>
+    <button class="ghost-btn" (click)="load()" [disabled]="loading">↻ Recalcular</button>
+  </div>
+
+  <!-- ── KPIs ── -->
+  <div class="rc-kpis" *ngIf="kpis">
+    <div class="kpi accent">
+      <span class="kpi-l">Recomendaciones generadas</span>
+      <span class="kpi-n">{{ kpis.recomendacionesGeneradas | number }}</span>
+    </div>
+    <div class="kpi buy">
+      <span class="kpi-l">De compra</span>
+      <span class="kpi-n">{{ kpis.recomendacionesCompra | number }}</span>
+    </div>
+    <div class="kpi pub">
+      <span class="kpi-l">De publicación</span>
+      <span class="kpi-n">{{ kpis.recomendacionesPublicacion | number }}</span>
+    </div>
+    <div class="kpi rev">
+      <span class="kpi-l">En revisión</span>
+      <span class="kpi-n">{{ kpis.recomendacionesRevision | number }}</span>
+    </div>
+    <div class="kpi ok">
+      <span class="kpi-l">Score promedio</span>
+      <span class="kpi-n">{{ kpis.scorePromedioRecomendado }}</span>
+    </div>
+    <div class="kpi roi">
+      <span class="kpi-l">ROI promedio estimado</span>
+      <span class="kpi-n">{{ kpis.roiPromedioEstimado }}%</span>
+      <span class="kpi-sub">sobre las de compra</span>
+    </div>
+  </div>
+
+  <!-- ── Respuestas rápidas ── -->
+  <div class="rc-answers" *ngIf="destacados">
+    <div class="ans buy" *ngIf="destacados.comprarHoy" (click)="verDetalle(destacados.comprarHoy)">
+      <span class="ans-q">¿Qué debería comprar hoy?</span>
+      <b class="ans-a">{{ short(destacados.comprarHoy.product_name, 46) }}</b>
+      <span class="ans-m">score {{ destacados.comprarHoy.pricehunter_score }} · ROI {{ destacados.comprarHoy.estimated_margin }}% · {{ fmt(destacados.comprarHoy.current_price) }}</span>
+    </div>
+    <div class="ans pub" *ngIf="destacados.publicarPrimero" (click)="verDetalle(destacados.publicarPrimero)">
+      <span class="ans-q">¿Qué debería publicar primero?</span>
+      <b class="ans-a">{{ short(destacados.publicarPrimero.product_name, 46) }}</b>
+      <span class="ans-m">viralidad {{ destacados.publicarPrimero.viralidad }} · -{{ destacados.publicarPrimero.discount_percent }}%</span>
+    </div>
+    <div class="ans roi" *ngIf="destacados.mejorRoi" (click)="verDetalle(destacados.mejorRoi)">
+      <span class="ans-q">¿Mejor ROI?</span>
+      <b class="ans-a">{{ short(destacados.mejorRoi.product_name, 46) }}</b>
+      <span class="ans-m">ROI {{ destacados.mejorRoi.estimated_margin }}% · {{ fmt(destacados.mejorRoi.current_price) }}</span>
+    </div>
+    <div class="ans viral" *ngIf="destacados.masViral" (click)="verDetalle(destacados.masViral)">
+      <span class="ans-q">¿Más probable de viralizarse?</span>
+      <b class="ans-a">{{ short(destacados.masViral.product_name, 46) }}</b>
+      <span class="ans-m">viralidad {{ destacados.masViral.viralidad }} · {{ destacados.masViral.store }}</span>
+    </div>
+    <div class="ans ign" (click)="filtrarPor('Ignorar')">
+      <span class="ans-q">¿Qué debo ignorar?</span>
+      <b class="ans-a">{{ destacados.ignorar | number }} ofertas</b>
+      <span class="ans-m">tentadoras pero descartadas por el motor · clic para verlas</span>
+    </div>
+  </div>
+
+  <!-- ── Filtros ── -->
+  <div class="rc-toolbar">
+    <div class="tb-group">
+      <label>Recomendación</label>
+      <select [(ngModel)]="fTipo" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let t of filters.tipos" [value]="t">{{ t }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Prioridad</label>
+      <select [(ngModel)]="fPrioridad" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let p of filters.prioridades" [value]="p">{{ p }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Tienda</label>
+      <select [(ngModel)]="fStore" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let s of filters.stores" [value]="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Categoría</label>
+      <select [(ngModel)]="fCategory" (ngModelChange)="onFilterChange()">
+        <option value="">Todas</option>
+        <option *ngFor="let c of filters.categories" [value]="c">{{ c }}</option>
+      </select>
+    </div>
+    <div class="tb-group">
+      <label>Score mínimo: {{ fMinScore }}</label>
+      <input type="range" min="0" max="100" step="5" [(ngModel)]="fMinScore" (change)="onFilterChange()" />
+    </div>
+    <div class="tb-group">
+      <label>Detectada desde</label>
+      <input type="date" [(ngModel)]="fDesde" (ngModelChange)="onFilterChange()" />
+    </div>
+    <div class="tb-group grow">
+      <label>Buscar</label>
+      <input type="text" placeholder="Producto, marca…" [(ngModel)]="fQuery" (keyup.enter)="onFilterChange()" />
+    </div>
+    <div class="tb-group">
+      <label>Ordenar por</label>
+      <select [(ngModel)]="sort" (ngModelChange)="onFilterChange()">
+        <option *ngFor="let o of sortOptions" [value]="o.value">{{ o.label }}</option>
+      </select>
+    </div>
+    <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <div class="rc-loading" *ngIf="loading">Analizando oportunidades…</div>
+  <div class="rc-error" *ngIf="error && !loading">{{ error }}</div>
+
+  <!-- ── Tabla ── -->
+  <div class="rc-table-wrap" *ngIf="!loading && items.length">
+    <table class="rc-table">
+      <thead>
+        <tr>
+          <th class="c-prod">Producto</th>
+          <th>Tienda</th>
+          <th>Categoría</th>
+          <th class="c-num">Precio actual</th>
+          <th class="c-num">Precio histórico</th>
+          <th class="c-num">Descuento</th>
+          <th class="c-num">Margen</th>
+          <th class="c-num">Score IA</th>
+          <th>Recomendación</th>
+          <th>Prioridad</th>
+          <th class="c-motivo">Motivo</th>
+          <th class="c-act">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let it of items" (click)="verDetalle(it)"
+            [class.is-ign]="it.recommendation_type === 'Ignorar'"
+            [class.done]="it.status !== 'Nueva'">
+          <td class="c-prod">
+            <div class="prod-cell">
+              <div class="prod-thumb"><img *ngIf="it.image_url" [src]="it.image_url" [alt]="it.product_name" loading="lazy" /></div>
+              <div class="prod-txt">
+                <span class="prod-name">{{ it.product_name }}</span>
+                <span class="prod-sub">
+                  <span class="st-badge" [class]="'st-badge ' + estadoClass(it.status)">{{ it.status }}</span>
+                  <span *ngIf="it.brand" class="prod-brand">{{ it.brand }}</span>
+                </span>
+              </div>
+            </div>
+          </td>
+          <td><span class="badge-store" [class]="'badge-store ' + storeBadge(it.store)">{{ it.store }}</span></td>
+          <td class="c-cat">{{ it.category }}</td>
+          <td class="c-num price-now">{{ fmt(it.current_price) }}</td>
+          <td class="c-num price-hist">{{ it.historical_price ? fmt(it.historical_price) : '—' }}</td>
+          <td class="c-num"><span class="disc">-{{ it.discount_percent }}%</span></td>
+          <td class="c-num margin">{{ it.estimated_margin }}%</td>
+          <td class="c-num">
+            <span class="score-ring" [class]="'score-ring ' + scoreClass(it.pricehunter_score)">{{ it.pricehunter_score }}</span>
+          </td>
+          <td><span class="rec-badge" [class]="'rec-badge ' + tipoClass(it.recommendation_type)">{{ it.recommendation_type }}</span></td>
+          <td><span class="prio-badge" [class]="'prio-badge ' + prioClass(it.priority)">{{ it.priority }}</span></td>
+          <td class="c-motivo"><span class="motivo">{{ it.reason }}</span></td>
+          <td class="c-act" (click)="$event.stopPropagation()">
+            <div class="row-actions">
+              <button class="ra" title="Ver detalle" (click)="verDetalle(it)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+              <button class="ra pub" title="Enviar a Publicador IA" [disabled]="isBusy(it)" (click)="enviarPublicador(it, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+              </button>
+              <button class="ra tk" title="Enviar a TikTok Factory" [disabled]="isBusy(it)" (click)="enviarTiktok(it, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 12a4 4 0 1 0 4 4V4c.5 2 2 4 5 4"/></svg>
+              </button>
+              <button class="ra pf" title="Agregar a Portafolio" [disabled]="isBusy(it)" (click)="agregarPortafolio(it, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+              <button class="ra ok" title="Marcar como revisado" [disabled]="isBusy(it)" (click)="marcarRevisado(it, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+              <button class="ra no" title="Ignorar" [disabled]="isBusy(it)" (click)="ignorar(it, $event)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Paginación ── -->
+  <div class="rc-pager" *ngIf="!loading && total > limit">
+    <button class="ghost-btn sm" [disabled]="page <= 1" (click)="goPage(page - 1)">← Anterior</button>
+    <span class="pager-info">Página {{ page }} de {{ totalPages }} · {{ total | number }} recomendaciones</span>
+    <button class="ghost-btn sm" [disabled]="page >= totalPages" (click)="goPage(page + 1)">Siguiente →</button>
+  </div>
+
+  <div class="rc-empty" *ngIf="!loading && !items.length && !error">
+    No hay recomendaciones con esos filtros.
+  </div>
+
+  <!-- ── Panel de detalle ── -->
+  <div class="rc-detail-backdrop" *ngIf="selected" (click)="closeDetail()">
+    <div class="rc-detail" (click)="$event.stopPropagation()">
+      <button class="detail-close" (click)="closeDetail()">✕</button>
+
+      <div class="detail-media">
+        <img *ngIf="selected.image_url" [src]="selected.image_url" [alt]="selected.product_name" />
+        <div class="detail-noimg" *ngIf="!selected.image_url">Sin imagen</div>
+        <span class="rec-badge lg" [class]="'rec-badge lg ' + tipoClass(selected.recommendation_type)">{{ selected.recommendation_type }}</span>
+      </div>
+
+      <div class="detail-body">
+        <div class="detail-top">
+          <span class="score-ring lg" [class]="'score-ring lg ' + scoreClass(selected.pricehunter_score)">{{ selected.pricehunter_score }}</span>
+          <div class="detail-top-txt">
+            <div class="detail-tags">
+              <span class="prio-badge" [class]="'prio-badge ' + prioClass(selected.priority)">Prioridad {{ selected.priority }}</span>
+              <span class="st-badge" [class]="'st-badge ' + estadoClass(selected.status)">{{ selected.status }}</span>
+            </div>
+            <p class="detail-clas" *ngIf="selected.clasificacion">{{ selected.clasificacion }} · Ranking IA #{{ selected.ranking_pos }}</p>
+          </div>
+        </div>
+
+        <h3>{{ selected.product_name }}</h3>
+        <p class="detail-reason">{{ selected.reason }}</p>
+
+        <div class="detail-grid">
+          <div><span>Tienda</span><b class="cap">{{ selected.store }}</b></div>
+          <div><span>Categoría</span><b>{{ selected.category }}</b></div>
+          <div><span>Marca</span><b>{{ selected.brand || '—' }}</b></div>
+          <div><span>Precio actual</span><b class="green">{{ fmt(selected.current_price) }}</b></div>
+          <div><span>Precio histórico</span><b>{{ selected.historical_price ? fmt(selected.historical_price) : '—' }}</b></div>
+          <div><span>Precio lista</span><b>{{ fmt(selected.original_price) }}</b></div>
+          <div><span>Descuento</span><b>-{{ selected.discount_percent }}%</b></div>
+          <div><span>Margen estimado</span><b>{{ selected.estimated_margin }}%</b></div>
+          <div><span>Viralidad</span><b>{{ selected.viralidad }}/100</b></div>
+        </div>
+
+        <div class="detail-context">
+          <div class="ctx" *ngIf="selected.category_avg_discount">
+            Promedio de descuento en {{ selected.category }}: <b>{{ selected.category_avg_discount }}%</b>
+          </div>
+          <div class="ctx" *ngIf="selected.below_market">
+            Está <b>{{ selected.mkt_diff_pct }}%</b> por debajo de su mediana histórica.
+          </div>
+          <div class="ctx warn" *ngIf="!selected.in_stock">Sin stock reportado en la última lectura.</div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="da pub" [disabled]="isBusy(selected)" (click)="enviarPublicador(selected)">Enviar a Publicador IA</button>
+          <button class="da tk" [disabled]="isBusy(selected)" (click)="enviarTiktok(selected)">Enviar a TikTok Factory</button>
+          <button class="da pf" [disabled]="isBusy(selected)" (click)="agregarPortafolio(selected)">Agregar a Portafolio</button>
+          <button class="da ok" [disabled]="isBusy(selected)" (click)="marcarRevisado(selected)">Marcar revisado</button>
+          <button class="da no" [disabled]="isBusy(selected)" (click)="ignorar(selected)">Ignorar</button>
+          <a *ngIf="selected.url" [href]="selected.url" target="_blank" rel="noopener" class="da link">Ver en tienda ↗</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast ── -->
+  <div class="rc-toast" *ngIf="toast">{{ toast }}</div>
+
+</div>

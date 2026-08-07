@@ -34,7 +34,7 @@ _META = [
     ("sodimac",      "Sodimac",       "Requests", "https://www.sodimac.com.pe/sodimac-pe",     "Activo"),
     ("mercadolibre", "Mercado Libre", "Requests", "https://www.mercadolibre.com.pe",           "Activo"),
     ("shopstar",     "Shopstar",      "VTEX",     "https://www.shopstar.pe",                   "Activo"),
-    ("tottus",       "Tottus",        "VTEX",     "https://www.tottus.com.pe",                 "Deshabilitado"),
+    ("tottus",       "Tottus",        "Requests", "https://www.tottus.com.pe/tottus-pe",       "Activo"),
 ]
 _SCHEDULES = ["Cada 15 minutos", "Cada 30 minutos", "Cada hora", "Cada 2 horas", "Cada 6 horas", "Manual"]
 _TYPES = ["Playwright", "API", "Selenium", "Requests", "VTEX"]
@@ -95,6 +95,24 @@ def _all() -> list[dict]:
     faltantes = [_nuevo(*meta) for meta in _META if meta[0] not in conocidos]
     if faltantes:
         items.extend(faltantes)
+    # Tottus arrastraba en Redis los datos de cuando su scraper apuntaba a un
+    # endpoint VTEX que Tottus no tiene (403): tipo "VTEX", base_url sin
+    # /tottus-pe y estado Deshabilitado/Manual. Ya funciona vía __NEXT_DATA__, así
+    # que se corrige la entrada vieja una sola vez. Se detecta por el TIPO, no por
+    # el estado: la entrada podía haberse activado a mano y seguir mal tipada.
+    tottus = next((it for it in items if it.get("id") == "tottus"), None)
+    promovido = tottus is not None and tottus.get("scraper_type") == "VTEX"
+    if promovido:
+        tottus.update({
+            "scraper_type": "Requests",
+            "base_url": "https://www.tottus.com.pe/tottus-pe",
+            "updated_at": _now(),
+        })
+        if tottus.get("status") == "Deshabilitado":
+            tottus["status"] = "Activo"
+        if tottus.get("schedule") == "Manual":
+            tottus["schedule"] = "Cada hora"
+    if faltantes or promovido:
         _r().set(_KEY, json.dumps(items, default=str))
     return items
 

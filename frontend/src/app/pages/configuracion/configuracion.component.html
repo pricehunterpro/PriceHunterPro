@@ -1,0 +1,199 @@
+<div class="cfg-page">
+
+  <!-- ── Header ── -->
+  <div class="cfg-header">
+    <div>
+      <h2>
+        Configuración
+        <span class="cfg-chip">Centro de control</span>
+        <span class="cfg-env" [class.prod]="ambiente === 'production'">{{ ambiente || '—' }}</span>
+      </h2>
+      <p>Todo el comportamiento de PriceHunter Pro se administra desde acá. Cada cambio queda
+         registrado con usuario, fecha, valor anterior y valor nuevo.</p>
+    </div>
+    <div class="cfg-header-actions">
+      <button class="ghost-btn" (click)="load()" [disabled]="loading || saving">↻ Recargar</button>
+      <button class="ghost-btn danger" (click)="discard()" *ngIf="dirtyCount">Descartar ({{ dirtyCount }})</button>
+      <button class="primary-btn" (click)="save()" [disabled]="!dirtyCount || saving">
+        {{ saving ? 'Guardando…' : 'Guardar cambios' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ── KPIs ── -->
+  <div class="cfg-kpis" *ngIf="kpis">
+    <div class="kpi accent">
+      <span class="kpi-l">Configuraciones activas</span>
+      <span class="kpi-n">{{ kpis.configuracionesActivas }}</span>
+      <span class="kpi-sub">de {{ kpis.configuracionesTotales }} ajustes</span>
+    </div>
+    <div class="kpi info">
+      <span class="kpi-l">Integraciones conectadas</span>
+      <span class="kpi-n">{{ kpis.integracionesConectadas }}</span>
+      <span class="kpi-sub">de {{ kpis.integracionesTotales }}</span>
+    </div>
+    <div class="kpi ok">
+      <span class="kpi-l">Scrapers activos</span>
+      <span class="kpi-n">{{ kpis.scrapersActivos }}</span>
+      <span class="kpi-sub">de {{ kpis.scrapersTotales }}</span>
+    </div>
+    <div class="kpi purple">
+      <span class="kpi-l">Canales activos</span>
+      <span class="kpi-n">{{ kpis.canalesActivos }}</span>
+      <span class="kpi-sub">de {{ kpis.canalesTotales }}</span>
+    </div>
+    <div class="kpi" [class]="'kpi state ' + estadoClass(kpis.estadoSistema)">
+      <span class="kpi-l">Estado del sistema</span>
+      <span class="kpi-n">{{ kpis.estadoSistema }}</span>
+      <span class="kpi-sub" *ngIf="status">uptime {{ status.uptime.texto }}</span>
+    </div>
+  </div>
+
+  <div class="cfg-loading" *ngIf="loading">Cargando configuración…</div>
+  <div class="cfg-error" *ngIf="error && !loading">{{ error }}</div>
+
+  <!-- ── Cuerpo: menú lateral interno + panel ── -->
+  <div class="cfg-body" *ngIf="!loading && categories.length">
+
+    <ph-settings-sidebar
+      [categories]="categories"
+      [active]="active"
+      [dirtyByCategory]="dirtyByCategory"
+      (select)="selectCategory($event)" />
+
+    <div class="cfg-panel">
+
+      <!-- ══ Pestaña SISTEMA ══ -->
+      <ph-settings-section
+        *ngIf="active === 'sistema'"
+        [title]="activeMeta?.label || ''"
+        [subtitle]="activeMeta?.desc || ''">
+        <button actions class="ghost-btn sm" (click)="resetCategory()" [disabled]="saving">Restaurar defaults</button>
+
+        <div class="sys-grid" *ngIf="status">
+          <ph-system-status-card label="Versión" [value]="status.version" [sub]="'Python ' + status.python" />
+          <ph-system-status-card label="Ambiente" [value]="status.ambiente" [sub]="'.env: ' + status.ambienteReal" />
+          <ph-system-status-card
+            label="Memoria" [value]="status.memoria.usadoMb + ' MB'"
+            [sub]="'de ' + status.memoria.totalMb + ' MB'" [percent]="status.memoria.porcentaje" />
+          <ph-system-status-card
+            label="CPU" [value]="status.cpu.porcentaje + '%'"
+            [sub]="'load ' + status.cpu.load1 + ' · ' + status.cpu.nucleos + ' núcleos'" [percent]="status.cpu.porcentaje" />
+          <ph-system-status-card
+            label="Disco" [value]="status.disco.usadoGb + ' GB'"
+            [sub]="'de ' + status.disco.totalGb + ' GB'" [percent]="status.disco.porcentaje" />
+          <ph-system-status-card label="Uptime" [value]="status.uptime.texto" [sub]="'proceso ' + status.uptime.procesoTexto" />
+        </div>
+
+        <div class="sys-actions">
+          <button class="act-btn" (click)="clearCache()">Limpiar caché</button>
+          <button class="act-btn prep" disabled title="Pendiente de integrar">Reiniciar servicios</button>
+        </div>
+
+        <div class="sec-sub">Ajustes</div>
+        <ph-settings-card
+          *ngFor="let it of activeItems"
+          [item]="it" [dirty]="isDirty(it)"
+          (valueChange)="onValueChange(it, $event)" />
+      </ph-settings-section>
+
+      <!-- ══ Pestaña BASE DE DATOS ══ -->
+      <ph-settings-section
+        *ngIf="active === 'base_datos'"
+        [title]="activeMeta?.label || ''"
+        [subtitle]="activeMeta?.desc || ''">
+        <button actions class="ghost-btn sm" (click)="resetCategory()" [disabled]="saving">Restaurar defaults</button>
+
+        <div class="bd-status" *ngIf="status?.baseDatos as bd">
+          <div class="bd-row">
+            <span class="bd-state" [class.on]="bd.conectado">{{ bd.conectado ? 'Conectada' : 'Sin conexión' }}</span>
+            <span class="bd-motor">{{ bd.motor }}</span>
+            <span class="bd-host" *ngIf="bd.host">{{ bd.host }}</span>
+          </div>
+          <p class="bd-error" *ngIf="bd.error">{{ bd.error }}</p>
+
+          <div class="bd-grid">
+            <div><span>Tamaño</span><b>{{ bd.tamano }}</b></div>
+            <div><span>Tablas</span><b>{{ bd.tablas }}</b></div>
+            <div><span>Última migración</span><b class="mono">{{ bd.ultimaMigracion || '—' }}</b></div>
+            <div><span>Último backup</span><b>{{ bd.ultimoBackup || 'Nunca' }}</b></div>
+          </div>
+
+          <div class="sec-sub">Filas por tabla <span class="sec-note">(estimado de pg_class)</span></div>
+          <div class="bd-tablas">
+            <div class="bd-tabla" *ngFor="let f of filasBD()">
+              <span class="mono">{{ f.tabla }}</span>
+              <b>{{ f.filas | number }}</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="sys-actions">
+          <button class="act-btn prep" (click)="createBackup()">Crear backup</button>
+          <button class="act-btn prep" disabled title="Pendiente de integrar">Restaurar backup</button>
+          <button class="act-btn" (click)="runMigrations()">Ejecutar migraciones</button>
+        </div>
+
+        <div class="sec-sub">Ajustes</div>
+        <ph-settings-card
+          *ngFor="let it of activeItems"
+          [item]="it" [dirty]="isDirty(it)"
+          (valueChange)="onValueChange(it, $event)" />
+      </ph-settings-section>
+
+      <!-- ══ Pestaña INTEGRACIONES ══ -->
+      <ph-settings-section
+        *ngIf="active === 'integraciones'"
+        [title]="activeMeta?.label || ''"
+        [subtitle]="activeMeta?.desc || ''">
+        <button actions class="ghost-btn sm" (click)="resetCategory()" [disabled]="saving">Restaurar defaults</button>
+
+        <div class="int-grid">
+          <ph-integration-card
+            *ngFor="let i of integraciones"
+            [item]="i" [busy]="busyIntegration === i.id"
+            (action)="onIntegrationAction(i, $event)" />
+        </div>
+
+        <div class="sec-sub">Credenciales gestionadas acá</div>
+        <ph-settings-card
+          *ngFor="let it of activeItems"
+          [item]="it" [dirty]="isDirty(it)"
+          (valueChange)="onValueChange(it, $event)" />
+      </ph-settings-section>
+
+      <!-- ══ Resto de pestañas: formulario puro ══ -->
+      <ph-settings-section
+        *ngIf="active !== 'sistema' && active !== 'base_datos' && active !== 'integraciones'"
+        [title]="activeMeta?.label || ''"
+        [subtitle]="activeMeta?.desc || ''">
+        <button actions class="ghost-btn sm" (click)="resetCategory()" [disabled]="saving">Restaurar defaults</button>
+
+        <ph-settings-card
+          *ngFor="let it of activeItems"
+          [item]="it" [dirty]="isDirty(it)"
+          (valueChange)="onValueChange(it, $event)" />
+      </ph-settings-section>
+
+      <!-- ── Bitácora ── -->
+      <div class="cfg-audit">
+        <div class="sec-sub">Últimos cambios de configuración</div>
+        <ph-configuration-table [rows]="audit" />
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Barra flotante de guardado ── -->
+  <div class="cfg-savebar" *ngIf="dirtyCount">
+    <span>{{ dirtyCount }} cambio{{ dirtyCount === 1 ? '' : 's' }} sin guardar</span>
+    <button class="ghost-btn sm" (click)="discard()">Descartar</button>
+    <button class="primary-btn sm" (click)="save()" [disabled]="saving">
+      {{ saving ? 'Guardando…' : 'Guardar' }}
+    </button>
+  </div>
+
+  <!-- ── Toast ── -->
+  <div class="cfg-toast" *ngIf="toast" [class.err]="toastError">{{ toast }}</div>
+
+</div>

@@ -19,6 +19,12 @@ class ScrapedProduct:
     image_url: str
     category: str
     scraped_at: datetime
+    # Precio exclusivo con tarjeta (CMR/Única en el grupo Falabella). NO reemplaza
+    # a `current_price`, que sigue siendo el precio público: quien no tiene la
+    # tarjeta paga ese. Se guarda aparte porque los glitches virales aparecen casi
+    # siempre acá (laptop a S/499 con CMR mientras el precio internet es S/3.139)
+    # y antes se descartaban. None = la tienda no ofrece precio con tarjeta.
+    card_price: Decimal | None = None
 
 
 class BaseScraper:

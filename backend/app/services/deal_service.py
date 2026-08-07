@@ -34,6 +34,9 @@ def _hc(d: dict) -> dict:
     d.setdefault("avgMarketPrice", 0.0)
     d.setdefault("belowMarket", False)
     d.setdefault("mktDiffPct", 0.0)
+    d.setdefault("cardPrice", 0.0)
+    d.setdefault("cardDiscountPct", 0.0)
+    d.setdefault("cardGlitch", False)
     return d
 
 _HARDCODED: list[dict[str, Any]] = [
@@ -81,6 +84,7 @@ class DealService:
                         COALESCE(p.image_url, '')          AS image_url,
                         CAST(sp.current_price  AS float)   AS current_price,
                         CAST(sp.original_price AS float)   AS original_price,
+                        CAST(COALESCE(sp.card_price, 0) AS float) AS card_price,
                         CAST(sp.discount_percentage AS float) AS discount_pct,
                         sp.in_stock,
                         sp.last_scraped_at,
@@ -121,6 +125,12 @@ class DealService:
                     mkt_diff_pct = round((1 - current / avg_hist) * 100, 1) if avg_hist > 0 else 0.0
                     avg_mkt = avg_hist
                     scraped_at = r.last_scraped_at.isoformat() if r.last_scraped_at else ""
+                    # Precio con tarjeta (CMR/Única). `card_glitch` = por debajo de
+                    # la mitad del precio público: eso ya no es beneficio de tarjeta
+                    # (los normales son 3-10%), es el glitch que se viraliza.
+                    card = float(getattr(r, "card_price", 0) or 0)
+                    card_discount = round((1 - card / orig) * 100, 1) if card > 0 and orig > 0 else 0.0
+                    card_glitch = bool(card > 0 and current > 0 and card < current * 0.5)
                     items.append({
                         "id": r.id,
                         "store": r.store,
@@ -138,6 +148,9 @@ class DealService:
                         "avgMarketPrice": avg_mkt,
                         "belowMarket": below_market,
                         "mktDiffPct": mkt_diff_pct,
+                        "cardPrice": card,
+                        "cardDiscountPct": card_discount,
+                        "cardGlitch": card_glitch,
                     })
                 _items_cache["items"] = items
                 _items_cache["ts"] = now

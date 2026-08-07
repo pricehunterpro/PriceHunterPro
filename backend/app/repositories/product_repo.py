@@ -104,6 +104,7 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
                     "id": spid, "product_id": pid, "store": s.store,
                     "store_sku": s.store_sku or None, "url": s.url or None,
                     "current_price": s.current_price, "original_price": s.original_price,
+                    "card_price": s.card_price,
                     "discount_percentage": s.discount_percentage,
                     "in_stock": s.in_stock, "last_scraped_at": s.scraped_at,
                 })
@@ -115,6 +116,7 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
                 sp_updates.append({
                     "id": spid,
                     "current_price": s.current_price, "original_price": s.original_price,
+                    "card_price": s.card_price,
                     "discount_percentage": s.discount_percentage,
                     "in_stock": s.in_stock, "last_scraped_at": s.scraped_at,
                     "url": s.url or None, "store_sku": s.store_sku or None,

@@ -11,6 +11,7 @@ import { SupervisionComponent } from './pages/supervision/supervision.component'
 import { PublicadorComponent } from './pages/publicador/publicador.component';
 import { CalendarioComponent } from './pages/calendario/calendario.component';
 import { RankingIaComponent } from './pages/ranking-ia/ranking-ia.component';
+import { RecomendacionesComponent } from './pages/recomendaciones/recomendaciones.component';
 import { TendenciasComponent } from './pages/tendencias/tendencias.component';
 import { AnalyticsComponent } from './pages/analytics/analytics.component';
 import { RentabilidadComponent } from './pages/rentabilidad/rentabilidad.component';
@@ -24,6 +25,7 @@ import { HistorialComponent } from './pages/historial/historial.component';
 import { UsuariosComponent } from './pages/usuarios/usuarios.component';
 import { TiendasComponent } from './pages/tiendas/tiendas.component';
 import { CanalesComponent } from './pages/canales/canales.component';
+import { ConfiguracionComponent } from './pages/configuracion/configuracion.component';
 import { LoginComponent } from './pages/login/login.component';
 import { authGuard, adminGuard } from './guards/auth.guard';
 
@@ -45,6 +47,7 @@ export const routes: Routes = [
       // ── Solo admin ──
       { path: 'motor-ia',                    component: MotorIaComponent,         canActivate: [adminGuard] },
       { path: 'inteligencia-ia/ranking-ia',  component: RankingIaComponent,       canActivate: [adminGuard] },
+      { path: 'inteligencia-ia/recomendaciones', component: RecomendacionesComponent, canActivate: [adminGuard] },
       { path: 'inteligencia-ia/tendencias',  component: TendenciasComponent,      canActivate: [adminGuard] },
       { path: 'business-intelligence/analytics', component: AnalyticsComponent,   canActivate: [adminGuard] },
       { path: 'business-intelligence/rentabilidad', component: RentabilidadComponent, canActivate: [adminGuard] },
@@ -57,6 +60,7 @@ export const routes: Routes = [
       { path: 'administracion/usuarios',     component: UsuariosComponent,        canActivate: [adminGuard] },
       { path: 'administracion/tiendas',      component: TiendasComponent,         canActivate: [adminGuard] },
       { path: 'administracion/canales',      component: CanalesComponent,         canActivate: [adminGuard] },
+      { path: 'administracion/configuracion', component: ConfiguracionComponent,  canActivate: [adminGuard] },
       { path: 'marketing/tiktok-factory',    component: TiktokFactoryComponent,   canActivate: [adminGuard] },
       { path: 'marketing/supervision',       component: SupervisionComponent,     canActivate: [adminGuard] },
       { path: 'marketing/publicador-ia',     component: PublicadorComponent,      canActivate: [adminGuard] },

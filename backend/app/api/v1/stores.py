@@ -33,7 +33,7 @@ _META = [
     ("sodimac",      "Sodimac",       "sodimac.com.pe",       "Requests", "Mejoramiento del hogar","#ff6b00"),
     ("mercadolibre", "Mercado Libre", "mercadolibre.com.pe",  "Requests", "Marketplace",           "#ffe036"),
     ("shopstar",     "Shopstar",      "shopstar.pe",          "VTEX",     "Marketplace",           "#00b8a9"),
-    ("tottus",       "Tottus",        "tottus.com.pe",        "VTEX",     "Supermercado",          "#3c64c8"),
+    ("tottus",       "Tottus",        "tottus.com.pe",        "Requests", "Supermercado",          "#3c64c8"),
 ]
 
 
@@ -51,9 +51,9 @@ def _nuevo(sid: str, nombre: str, dominio: str, tipo: str, cat: str, color: str)
     now = _now()
     return {
         "id": sid, "nombre": nombre, "logo": nombre[:1].upper(), "dominio": dominio,
-        "tipo": tipo, "scraper_asociado": sid, "estado": "Activo" if sid != "tottus" else "Inactivo",
+        "tipo": tipo, "scraper_asociado": sid, "estado": "Activo",
         "color": color, "categoria": cat, "url": f"https://www.{dominio}",
-        "frecuencia": "Cada hora" if sid != "tottus" else "Manual",
+        "frecuencia": "Cada hora",
         "created_at": now, "updated_at": now,
     }
 
@@ -80,6 +80,17 @@ def _all() -> list[dict]:
     faltantes = [_nuevo(*meta) for meta in _META if meta[0] not in conocidos]
     if faltantes:
         items.extend(faltantes)
+    # Tottus quedó "Inactivo" en Redis mientras su scraper estaba roto (apuntaba
+    # a un endpoint VTEX inexistente). Ya funciona, así que se promueve la entrada
+    # vieja una sola vez.
+    tottus = next((it for it in items if it.get("id") == "tottus"), None)
+    promovido = tottus is not None and tottus.get("estado") == "Inactivo"
+    if promovido:
+        tottus.update({
+            "estado": "Activo", "frecuencia": "Cada hora",
+            "tipo": "Requests", "updated_at": _now(),
+        })
+    if faltantes or promovido:
         _r().set(_KEY, json.dumps(items, default=str))
     return items
 

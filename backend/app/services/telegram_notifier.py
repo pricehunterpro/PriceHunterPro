@@ -53,18 +53,41 @@ def notify_new_alerts(new_alerts: list[dict], channel_id: str = "") -> bool:
         diff = alert.get("mktDiffPct", 0)
         url = alert.get("url", "")
         image_url = alert.get("imageUrl", "")
+        card_price = alert.get("cardPrice", 0) or 0
+        card_glitch = bool(alert.get("cardGlitch"))
         # Titular estilo SUPERCUPON: PRODUCTO + PRECIO FINAL primero. Los glitches
         # ("a 1 sol") se marcan como ERROR DE PRECIO, el contenido más viral.
-        if alert.get("priceError") or price <= 5:
+        # En un glitch CON TARJETA el gancho es el precio con tarjeta, no el
+        # público: es el número que la gente comparte (laptop "a S/499 con CMR").
+        if card_glitch:
+            gancho = f"🚨 <b>{name} ¡a solo S/ {card_price:.2f} con tarjeta!</b>"
+        elif alert.get("priceError") or price <= 5:
             gancho = f"🚨 <b>{name} ¡a solo S/ {price:.2f}!</b>"
         elif price < 1000:
             gancho = f"🔥 <b>{name} a solo S/ {price:.0f}</b>"
         else:
             gancho = f"🔥 <b>{name} a S/ {price:,.0f}</b>"
-        etiqueta = "💥 ERROR DE PRECIO" if alert.get("priceError") else "🏷️ Oferta detectada"
+
+        if card_glitch:
+            etiqueta = "💥 PRECIO CON TARJETA"
+        elif alert.get("priceError"):
+            etiqueta = "💥 ERROR DE PRECIO"
+        else:
+            etiqueta = "🏷️ Oferta detectada"
+
+        # En el glitch con tarjeta el contraste que importa es tarjeta vs público;
+        # el histórico pasa a segunda línea.
+        if card_glitch:
+            linea_precio = (
+                f"💳 <b>S/ {card_price:.2f}</b> con tarjeta  ·  "
+                f"<s>S/ {price:.2f}</s> precio normal"
+            )
+        else:
+            linea_precio = f"💰 S/ {price:.2f} <s>S/ {avg:.2f}</s>  ·  {diff}% ↓ vs. histórico"
+
         msg = (
             f"{gancho}\n"
-            f"💰 S/ {price:.2f} <s>S/ {avg:.2f}</s>  ·  {diff}% ↓ vs. histórico\n"
+            f"{linea_precio}\n"
             f"🏪 {store}   {etiqueta}\n"
             f"🔗 <a href=\"{url}\">Ver oferta</a>"
         )

@@ -188,6 +188,8 @@ def score(deal: dict[str, Any]) -> float:
         s += 25
     if deal.get("priceError"):
         s += 40                       # glitch/precio-error = lo más viral
+    if deal.get("cardGlitch"):
+        s += 40                       # glitch con tarjeta: mismo gancho ("a S/499 con CMR")
     # afinidad de precio: lo alcanzable pesa más (curva suave, no un tope duro)
     if price < 100:
         s += 15

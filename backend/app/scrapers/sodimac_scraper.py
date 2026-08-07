@@ -83,6 +83,7 @@ def _products_from_results(results: list, category: str) -> list[ScrapedProduct]
         prices = item.get("prices") or []
         current_price  = Decimal("0")
         original_price = Decimal("0")
+        card_price     = Decimal("0")
 
         for p in prices:
             val   = _parse_price(p.get("price", []))
@@ -96,6 +97,13 @@ def _products_from_results(results: list, category: str) -> list[ScrapedProduct]
                 current_price = val
             elif ptype == "cmrPrice" and current_price == Decimal("0"):
                 current_price = val
+
+            # Precio con tarjeta, SIEMPRE aparte del precio público. Antes se
+            # descartaba salvo que no hubiera otro, y ahí se perdían los glitches
+            # (JVC 75" a S/599,90 con CMR contra S/2.099,90 internet: lo
+            # guardábamos como un -22,8% irrelevante).
+            if ptype == "cmrPrice" and card_price == Decimal("0"):
+                card_price = val
 
             # Precio original: normalPrice tachado
             if crossed and ptype == "normalPrice" and original_price == Decimal("0"):
@@ -138,6 +146,7 @@ def _products_from_results(results: list, category: str) -> list[ScrapedProduct]
             image_url=str(image_url),
             category=category,
             scraped_at=now_utc(),
+            card_price=card_price if card_price > Decimal("0") else None,
         ))
     return out
 
