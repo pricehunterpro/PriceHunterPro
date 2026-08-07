@@ -147,7 +147,11 @@ class MercadoLibreScraper(BaseScraper):
             sep = "&" if "?" in base_url else "?"
             url = f"{base_url}{sep}page={page}"
             try:
-                r = await client.get(url)
+                # Reintento con backoff para errores 5xx o de red
+                for attempt in range(3):
+                    r = await client.get(url)
+                    if r.status_code < 500: break
+                    await asyncio.sleep((2 ** attempt) + 0.5)
             except Exception:
                 break
             if r.status_code != 200:
