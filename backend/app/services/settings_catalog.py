@@ -177,6 +177,16 @@ _PUBLICACIONES = [
        "Franja en la que se permite publicar (zona horaria de la plataforma)."),
     _s("publicaciones", "limite_diario", "Límite diario", "number", 24,
        "Tope de publicaciones por día en todos los canales.", minimum=1, maximum=500),
+    _s("publicaciones", "retencion_publicados_dias", "Retener publicados en el panel", "number", 7,
+       "Días que una publicación ya emitida sigue ocupando tarjeta en el Publicador. "
+       "Pasado ese plazo libera el espacio para contenido nuevo; el registro se conserva "
+       "en el Calendario Editorial. 0 = no retirar nunca.",
+       minimum=0, maximum=365, unit="días", source="publicador._conservar"),
+    _s("publicaciones", "refresco_horas", "Refrescar candidatos cada", "number", 12,
+       "Cada cuántas horas el Publicador reemplaza sus tarjetas Pendiente por las "
+       "mejores ofertas del momento. Lo generado, aprobado, programado o publicado "
+       "nunca se toca. 0 desactiva el refresco automático.",
+       minimum=0, maximum=168, unit="h", source="publicador._refrescar_si_toca"),
 ]
 
 # ── 5. MARKETING ─────────────────────────────────────────────────────────────

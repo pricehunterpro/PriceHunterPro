@@ -85,7 +85,14 @@
       <tbody>
         <tr *ngFor="let it of items" [class]="'row-' + clasClass(it.clasificacion)">
           <td class="c-prod">
-            <div class="prod-cell">
+            <!-- Toda la celda es el enlace a la tienda: la imagen y el nombre son
+                 lo primero que uno intenta clicar para ir a comprar. -->
+            <a *ngIf="it.url" class="prod-cell prod-link" [href]="it.url" target="_blank" rel="noopener"
+               [title]="'Ver en ' + it.store + ' ↗'">
+              <div class="prod-thumb"><img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.name" loading="lazy" /></div>
+              <span class="prod-name">{{ it.name }}<span class="ext-ico">↗</span></span>
+            </a>
+            <div *ngIf="!it.url" class="prod-cell">
               <div class="prod-thumb"><img *ngIf="it.imageUrl" [src]="it.imageUrl" [alt]="it.name" loading="lazy" /></div>
               <span class="prod-name">{{ it.name }}</span>
             </div>

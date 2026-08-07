@@ -11,6 +11,7 @@ Regla: NADA se publica automáticamente; publicar requiere acción manual.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -20,6 +21,20 @@ from fastapi import APIRouter, Body, HTTPException
 router = APIRouter(prefix="/publicador", tags=["publicador"])
 
 _REDIS_KEY = "publicador:items"
+_REFRESH_KEY = "publicador:items:refreshed_at"
+
+# Cuantos items sirve el panel.
+_TOTAL_ITEMS = 16
+
+# Items que NO se tocan al refrescar: representan trabajo del administrador.
+# Solo se reemplazan los "Pendiente", que son las tarjetas que nadie abrio.
+_ESTADOS_CON_TRABAJO = {"Generado", "Aprobado", "Programado", "Publicado", "Error"}
+
+# "Publicado" es trabajo TERMINADO: el mensaje ya salio al canal y su registro
+# vive en el Calendario Editorial. Si se conservan para siempre terminan
+# ocupando todas las tarjetas y el panel deja de refrescarse — que es
+# exactamente el sintoma que se venia a corregir. Se retiran por antiguedad.
+_ESTADO_TERMINADO = "Publicado"
 
 ESTADOS = ["Pendiente", "Generado", "Aprobado", "Programado", "Publicado", "Error"]
 CANALES = ["Telegram", "Facebook", "Instagram", "TikTok"]
@@ -204,6 +219,150 @@ def _seed_items() -> list[dict]:
     return items
 
 
+def _norm_nombre(s: Any) -> str:
+    return re.sub(r"\s+", " ", str(s or "").strip().lower())
+
+
+def _fecha(valor: Any) -> datetime | None:
+    try:
+        d = datetime.fromisoformat(str(valor))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _conservar(items: list[dict], ahora: datetime, dias_publicados: float) -> list[dict]:
+    """Items que sobreviven al refresco.
+
+    Todo lo que tiene trabajo pendiente se queda. Lo ya PUBLICADO se queda solo
+    mientras sea reciente: si no, el panel se llena de publicaciones viejas y no
+    entra contenido nuevo.
+    """
+    out: list[dict] = []
+    for i in items:
+        estado = i.get("estado")
+        if estado not in _ESTADOS_CON_TRABAJO:
+            continue
+        if estado == _ESTADO_TERMINADO and dias_publicados > 0:
+            fecha = _fecha(i.get("fechaPublicacion")) or _fecha(i.get("createdAt"))
+            if fecha and (ahora - fecha) > timedelta(days=dias_publicados):
+                continue          # publicacion antigua: libera la tarjeta
+        out.append(i)
+    return out
+
+
+def _item_pendiente(row: dict, ahora: datetime) -> dict:
+    """Arma una tarjeta NUEVA, siempre en Pendiente.
+
+    A diferencia del seed inicial (que reparte estados y fechas para poblar la
+    demo), lo que entra por refresco es contenido real recien detectado: nace
+    Pendiente y el administrador decide si lo genera y publica.
+    """
+    disc = int(row.get("discountPct") or 0)
+    store = row.get("store") or ""
+    category = row.get("category") or "General"
+    return {
+        "id": str(uuid.uuid4()),
+        "opportunityId": str(row.get("id", "")),
+        "titulo": (row.get("name") or "")[:70],
+        "store": store,
+        "category": category,
+        "currentPrice": float(row.get("currentPrice") or 0),
+        "originalPrice": float(row.get("originalPrice") or 0),
+        "discountPct": disc,
+        "imageUrl": row.get("imageUrl") or "",
+        "url": row.get("url") or "",
+        "canalesSeleccionados": ["Telegram"],
+        "contenido": "",
+        "hashtags": _hashtags(store, category, disc),
+        "scoreIA": 0,
+        "estado": "Pendiente",
+        "fechaProgramada": None,
+        "fechaPublicacion": None,
+        "generadoAt": None,
+        "createdAt": ahora.isoformat(),
+        "origen": "Refresco automatico",
+    }
+
+
+def _refrescar_si_toca(items: list[dict]) -> list[dict]:
+    """Renueva las tarjetas Pendiente con los candidatos actuales.
+
+    El panel se sembraba UNA sola vez y quedaba congelado: `get_items` solo
+    llamaba al seed con la lista vacia, asi que despues de la primera carga
+    seguia mostrando el mismo lote durante semanas, generado ademas con el
+    ranking viejo (iluminacion con precio de lista corrupto y duplicados).
+
+    Se reconcilia en vez de borrar, igual que `stores._all` y `scrapers._all`:
+    lo que tiene estado se conserva y solo se reemplaza lo que nadie abrio.
+    """
+    from app.services.settings_service import get_setting
+
+    horas = float(get_setting("publicaciones", "refresco_horas", 12) or 0)
+    if horas <= 0:
+        return items          # 0 = refresco automatico desactivado
+
+    r = _r()
+    ahora = datetime.now(timezone.utc)
+    ultimo = r.get(_REFRESH_KEY)
+    if ultimo:
+        try:
+            ts = datetime.fromisoformat(ultimo.decode())
+            if (ahora - ts) < timedelta(hours=horas):
+                return items
+        except Exception:
+            pass
+
+    dias = float(get_setting("publicaciones", "retencion_publicados_dias", 7) or 0)
+    conservados = _conservar(items, ahora, dias)
+    try:
+        nuevos = _candidatos_nuevos(conservados, ahora)
+    except Exception:
+        # Si la BD no responde, se sirve la lista actual: mejor contenido viejo
+        # que un panel vacio.
+        return items
+
+    resultado = conservados + nuevos
+    _save_items(resultado)
+    r.set(_REFRESH_KEY, ahora.isoformat())
+    return resultado
+
+
+def _candidatos_nuevos(conservados: list[dict], ahora: datetime) -> list[dict]:
+    """Candidatos frescos para llenar las tarjetas que quedaron libres."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from app.core.config import get_settings
+    from app.services.deal_ranker import fetch_candidates, seleccionar_top
+
+    faltan = _TOTAL_ITEMS - len(conservados)
+    if faltan <= 0:
+        return []
+
+    engine = create_engine(
+        get_settings().database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+    )
+    with Session(engine) as session:
+        candidatos = fetch_candidates(session)
+
+    # Se pide de mas porque hay que descartar los que ya estan en el panel.
+    seleccion = seleccionar_top(candidatos, total=_TOTAL_ITEMS + len(conservados))
+
+    vistos = {_norm_nombre(i.get("titulo")) for i in conservados}
+    ids = {str(i.get("opportunityId")) for i in conservados}
+    nuevos: list[dict] = []
+    for d in seleccion:
+        if len(nuevos) >= faltan:
+            break
+        nombre = _norm_nombre(d.get("name"))
+        if nombre in vistos or str(d.get("id")) in ids:
+            continue
+        vistos.add(nombre)
+        ids.add(str(d.get("id")))
+        nuevos.append(_item_pendiente(d, ahora))
+    return nuevos
+
+
 def _kpis(items: list[dict]) -> dict[str, int]:
     counts: dict[str, int] = {e: 0 for e in ESTADOS}
     for it in items:
@@ -234,6 +393,8 @@ def get_items(estado: str | None = None, canal: str | None = None) -> dict[str, 
     items = _all_items()
     if not items:
         items = _seed_items()
+    else:
+        items = _refrescar_si_toca(items)
     filtered = items
     if estado:
         filtered = [i for i in filtered if i.get("estado") == estado]
@@ -322,11 +483,43 @@ def update(body: dict = Body(...)) -> dict[str, Any]:
 
 
 @router.post("/reload")
-def reload_items() -> dict[str, Any]:
-    """Recarga los items desde la BD (borra los actuales)."""
-    _r().delete(_REDIS_KEY)
-    items = _seed_items()
-    return {"status": "ok", "count": len(items)}
+def reload_items(full: bool = False) -> dict[str, Any]:
+    """Recarga los items desde la BD.
+
+    Por defecto CONSERVA lo que ya tiene trabajo encima (generado, aprobado,
+    programado, publicado) y solo renueva las tarjetas Pendiente. Antes borraba
+    la lista entera, con lo que un clic en "Recargar desde BD" se llevaba por
+    delante el historial de publicaciones.
+
+    `full=true` mantiene el comportamiento destructivo, para cuando de verdad se
+    quiere empezar de cero.
+    """
+    r = _r()
+    if full:
+        r.delete(_REDIS_KEY)
+        r.delete(_REFRESH_KEY)
+        items = _seed_items()
+        return {"status": "ok", "count": len(items), "conservados": 0, "modo": "completo"}
+
+    from app.services.settings_service import get_setting
+
+    ahora = datetime.now(timezone.utc)
+    actuales = _all_items()
+    if not actuales:
+        items = _seed_items()
+        r.set(_REFRESH_KEY, ahora.isoformat())
+        return {"status": "ok", "count": len(items), "conservados": 0, "modo": "inicial"}
+
+    dias = float(get_setting("publicaciones", "retencion_publicados_dias", 7) or 0)
+    conservados = _conservar(actuales, ahora, dias)
+    nuevos = _candidatos_nuevos(conservados, ahora)
+    items = conservados + nuevos
+    _save_items(items)
+    r.set(_REFRESH_KEY, ahora.isoformat())
+    return {
+        "status": "ok", "count": len(items),
+        "conservados": len(conservados), "nuevos": len(nuevos), "modo": "reconciliado",
+    }
 
 
 # ── Calendario Editorial ────────────────────────────────────────────────────
