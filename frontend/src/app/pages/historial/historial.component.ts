@@ -41,6 +41,21 @@ export class HistorialComponent implements OnInit {
   q = ''; fStore = ''; fCategory = ''; fBrand = ''; fMinPrice: number | null = null; fMaxPrice: number | null = null; fMinScore = 0;
   storesList: string[] = []; categoriesList: string[] = []; brandsList: string[] = [];
 
+  /** Filtro de la columna Var %. El valor codifica dirección + magnitud. */
+  fVar = '';
+  readonly varOptions = [
+    { v: '',        l: 'Variación: todas' },
+    { v: 'down',    l: '↓ Bajó de precio' },
+    { v: 'down10',  l: '↓ Bajó ≥ 10%' },
+    { v: 'down25',  l: '↓ Bajó ≥ 25%' },
+    { v: 'down50',  l: '↓ Bajó ≥ 50%' },
+    { v: 'up',      l: '↑ Subió de precio' },
+    { v: 'eq',      l: '= Sin cambio' },
+  ];
+  /** recent | var_asc (mayor caída primero) | var_desc */
+  sortBy = 'recent';
+  resumen: { bajaron: number; subieron: number; sinCambio: number } | null = null;
+
   // Detalle
   detail: Detail | null = null;
   chart: Chart | null = null;
@@ -54,6 +69,16 @@ export class HistorialComponent implements OnInit {
 
   ngOnInit(): void { this.loadFilters(); this.load(); this.loadStats(); }
 
+  /** 'down25' → { var_dir: 'down', min_var: '25' } */
+  private varParams(): Record<string, string> {
+    if (!this.fVar) return {};
+    const m = /^(down|up|eq)(\d+)?$/.exec(this.fVar);
+    if (!m) return {};
+    const p: Record<string, string> = { var_dir: m[1] };
+    if (m[2]) p['min_var'] = m[2];
+    return p;
+  }
+
   private params(): Record<string, string> {
     const p: Record<string, string> = { page: String(this.page), limit: String(this.limit) };
     if (this.q) p['q'] = this.q;
@@ -63,14 +88,28 @@ export class HistorialComponent implements OnInit {
     if (this.fMinPrice) p['min_price'] = String(this.fMinPrice);
     if (this.fMaxPrice) p['max_price'] = String(this.fMaxPrice);
     if (this.fMinScore) p['min_score'] = String(this.fMinScore);
-    return p;
+    if (this.sortBy !== 'recent') p['sort'] = this.sortBy;
+    return { ...p, ...this.varParams() };
   }
   load(): void {
     this.loading = true;
     this.http.get<any>(this.base, { params: this.params() }).pipe(finalize(() => this.loading = false)).subscribe({
-      next: r => { this.items = r.items ?? []; this.total = r.total ?? 0; },
-      error: () => { this.items = []; },
+      next: r => { this.items = r.items ?? []; this.total = r.total ?? 0; this.resumen = r.resumen ?? null; },
+      error: () => { this.items = []; this.resumen = null; },
     });
+  }
+
+  /** Al filtrar bajadas, ordena por mayor caída: es lo que se busca al mirarlas. */
+  onVarChange(): void {
+    if (this.fVar.startsWith('down') && this.sortBy === 'recent') this.sortBy = 'var_asc';
+    else if (!this.fVar && this.sortBy === 'var_asc') this.sortBy = 'recent';
+    this.search();
+  }
+
+  /** Click en la cabecera Var %: mayor caída → mayor subida → sin orden. */
+  toggleVarSort(): void {
+    this.sortBy = this.sortBy === 'var_asc' ? 'var_desc' : this.sortBy === 'var_desc' ? 'recent' : 'var_asc';
+    this.search();
   }
   loadStats(): void { this.http.get<any>(`${this.base}/stats`).subscribe({ next: r => this.kpis = r.kpis ?? null, error: () => {} }); }
   loadFilters(): void {
@@ -80,7 +119,7 @@ export class HistorialComponent implements OnInit {
     });
   }
   search(): void { this.page = 1; this.load(); }
-  clearFilters(): void { this.q = this.fStore = this.fCategory = this.fBrand = ''; this.fMinPrice = this.fMaxPrice = null; this.fMinScore = 0; this.page = 1; this.load(); }
+  clearFilters(): void { this.q = this.fStore = this.fCategory = this.fBrand = this.fVar = ''; this.fMinPrice = this.fMaxPrice = null; this.fMinScore = 0; this.sortBy = 'recent'; this.page = 1; this.load(); }
   get totalPages(): number { return Math.max(1, Math.ceil(this.total / this.limit)); }
   goPage(p: number): void { if (p < 1 || p > this.totalPages) return; this.page = p; this.load(); }
 
@@ -90,6 +129,8 @@ export class HistorialComponent implements OnInit {
     if (this.fStore) p['store'] = this.fStore;
     if (this.fCategory) p['category'] = this.fCategory;
     if (this.fBrand) p['brand'] = this.fBrand;
+    if (this.sortBy !== 'recent') p['sort'] = this.sortBy;
+    Object.assign(p, this.varParams());   // el CSV sale con el mismo filtro que la tabla
     const qs = new URLSearchParams(p).toString();
     window.open(`${this.base}/export/csv${qs ? '?' + qs : ''}`, '_blank');
   }

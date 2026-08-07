@@ -41,11 +41,21 @@ def _session():
 
 
 # ── Listado paginado ─────────────────────────────────────────────────────────
+# Umbral de "sin cambio": ±0.5%. Es el MISMO que usa `varClass()` en el front
+# para pintar la columna, así que filtrar "bajó de precio" devuelve exactamente
+# las filas que se ven en verde.
+_VAR_EPS = 0.5
+
+
 @router.get("")
 def list_history(
     q: str | None = None, store: str | None = None, category: str | None = None,
     brand: str | None = None, min_price: float = 0, max_price: float = 0,
-    min_score: int = 0, page: int = Query(1, ge=1), limit: int = Query(50, ge=1, le=200),
+    min_score: int = 0,
+    var_dir: str | None = Query(None, description="down = bajó de precio | up = subió | eq = sin cambio"),
+    min_var: float = Query(0, ge=0, le=100, description="Magnitud mínima de la variación, en %"),
+    sort: str = Query("recent", description="recent | var_asc (mayor caída primero) | var_desc"),
+    page: int = Query(1, ge=1), limit: int = Query(50, ge=1, le=200),
 ) -> dict[str, Any]:
     from sqlalchemy import text
 
@@ -61,6 +71,27 @@ def list_history(
     if max_price: where.append("sp.current_price <= :maxp"); params["maxp"] = max_price
     wsql = " AND ".join(where)
 
+    # La variación se compara contra el promedio histórico, que sale del GROUP BY,
+    # así que el filtro va en HAVING (no en WHERE). Hacerlo en SQL y no en Python
+    # importa: si no, la página se llenaría de filas descartadas y "bajó ≥50%"
+    # devolvería casi nada aunque existan coincidencias.
+    var_dir = (var_dir or "").lower() or None
+    having = ""
+    if var_dir in ("down", "up", "eq"):
+        pct = "(c.cp - AVG(ph.price)) / NULLIF(AVG(ph.price), 0) * 100"
+        umbral = max(min_var, _VAR_EPS) if var_dir != "eq" else _VAR_EPS
+        params["var_umbral"] = umbral
+        if var_dir == "down":
+            having = f"HAVING {pct} <= -:var_umbral"
+        elif var_dir == "up":
+            having = f"HAVING {pct} >= :var_umbral"
+        else:
+            having = f"HAVING ABS({pct}) < :var_umbral"
+
+    # Con filtro de variación se amplía el pool de candidatos: los 800 más
+    # recientes rara vez alcanzan para llenar una página de "bajó ≥50%".
+    params["cand_limit"] = 2500 if var_dir else 800
+
     sql = text(f"""
         WITH cand AS (
             SELECT sp.id, sp.product_id, sp.store, CAST(sp.current_price AS float) cp,
@@ -69,7 +100,7 @@ def list_history(
             FROM store_products sp JOIN products p ON p.id = sp.product_id
             WHERE {wsql}
             ORDER BY sp.last_scraped_at DESC NULLS LAST
-            LIMIT 800
+            LIMIT :cand_limit
         )
         SELECT c.id, p.name, COALESCE(p.brand,'') brand, COALESCE(p.category,'General') category,
                c.store, c.cp, c.op, c.disc, c.in_stock, c.store_sku, c.url, COALESCE(p.image_url,'') img,
@@ -79,6 +110,7 @@ def list_history(
         JOIN price_history ph ON ph.store_product_id = c.id AND ph.price > 0
         GROUP BY c.id, p.name, p.brand, p.category, c.store, c.cp, c.op, c.disc,
                  c.in_stock, c.store_sku, c.url, p.image_url
+        {having}
     """)
 
     rows = []
@@ -98,12 +130,26 @@ def list_history(
                 "cambios": int(r.n or 0), "ultimoCambio": r.last.isoformat() if r.last else None,
                 "variacionPct": variacion, "score": score,
                 "esMinimo": abs(current - (r.pmin or 0)) < 0.01,
+                "ahorroVsProm": round(pavg - current, 2) if pavg > current else 0.0,
             })
 
-    rows.sort(key=lambda x: x["ultimoCambio"] or "", reverse=True)
+    if sort == "var_asc":        # mayor caída primero: lo que más conviene comprar
+        rows.sort(key=lambda x: x["variacionPct"])
+    elif sort == "var_desc":
+        rows.sort(key=lambda x: x["variacionPct"], reverse=True)
+    else:
+        rows.sort(key=lambda x: x["ultimoCambio"] or "", reverse=True)
+
     total = len(rows)
     start = (page - 1) * limit
-    return {"items": rows[start:start + limit], "total": total, "page": page, "limit": limit}
+    return {
+        "items": rows[start:start + limit], "total": total, "page": page, "limit": limit,
+        "resumen": {
+            "bajaron":   sum(1 for x in rows if x["variacionPct"] <= -_VAR_EPS),
+            "subieron":  sum(1 for x in rows if x["variacionPct"] >= _VAR_EPS),
+            "sinCambio": sum(1 for x in rows if abs(x["variacionPct"]) < _VAR_EPS),
+        },
+    }
 
 
 # ── KPIs globales ────────────────────────────────────────────────────────────
@@ -256,15 +302,20 @@ def timeline(pid: str) -> dict[str, Any]:
 # ── Export CSV ───────────────────────────────────────────────────────────────
 @router.get("/export/csv")
 def export_csv(q: str | None = None, store: str | None = None, category: str | None = None,
-               brand: str | None = None) -> Response:
-    data = list_history(q=q, store=store, category=category, brand=brand, page=1, limit=200)
+               brand: str | None = None, var_dir: str | None = None, min_var: float = 0,
+               sort: str = "recent") -> Response:
+    # El CSV respeta el filtro de variación: si en pantalla estás viendo solo las
+    # bajadas, el archivo trae eso mismo y no el listado completo.
+    data = list_history(q=q, store=store, category=category, brand=brand,
+                        var_dir=var_dir, min_var=min_var, sort=sort, page=1, limit=200)
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["producto", "marca", "categoria", "tienda", "precio_actual", "precio_min",
-                "precio_max", "precio_prom", "variacion_%", "cambios", "score", "ultimo_cambio"])
+                "precio_max", "precio_prom", "variacion_%", "ahorro_vs_prom", "cambios",
+                "score", "ultimo_cambio"])
     for i in data["items"]:
         w.writerow([i["name"], i["brand"], i["category"], i["store"], i["currentPrice"],
                     i["precioMin"], i["precioMax"], i["precioProm"], i["variacionPct"],
-                    i["cambios"], i["score"], i["ultimoCambio"]])
+                    i["ahorroVsProm"], i["cambios"], i["score"], i["ultimoCambio"]])
     return Response(content=buf.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=pricehunter_historial.csv"})

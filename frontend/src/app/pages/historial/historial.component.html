@@ -27,8 +27,24 @@
     <select [(ngModel)]="fBrand" (ngModelChange)="search()"><option value="">Marca</option><option *ngFor="let b of brandsList" [value]="b">{{ b }}</option></select>
     <input class="hi-num" type="number" [(ngModel)]="fMinPrice" (change)="search()" placeholder="S/ mín" />
     <input class="hi-num" type="number" [(ngModel)]="fMaxPrice" (change)="search()" placeholder="S/ máx" />
+    <select class="var-f" [class.active]="fVar" [(ngModel)]="fVar" (ngModelChange)="onVarChange()">
+      <option *ngFor="let o of varOptions" [value]="o.v">{{ o.l }}</option>
+    </select>
     <div class="score-f"><span>Score ≥ {{ fMinScore }}</span><input type="range" min="0" max="100" step="5" [(ngModel)]="fMinScore" (change)="search()" /></div>
     <button class="ghost-btn sm" (click)="clearFilters()">Limpiar</button>
+  </div>
+
+  <!-- Resumen de variaciones: atajo para saltar directo a las bajadas -->
+  <div class="hi-varsum" *ngIf="resumen && !loading">
+    <button class="vs down" [class.on]="fVar === 'down'" (click)="fVar = fVar === 'down' ? '' : 'down'; onVarChange()">
+      ↓ {{ resumen.bajaron | number }} bajaron de precio
+    </button>
+    <button class="vs up" [class.on]="fVar === 'up'" (click)="fVar = fVar === 'up' ? '' : 'up'; onVarChange()">
+      ↑ {{ resumen.subieron | number }} subieron
+    </button>
+    <button class="vs eq" [class.on]="fVar === 'eq'" (click)="fVar = fVar === 'eq' ? '' : 'eq'; onVarChange()">
+      = {{ resumen.sinCambio | number }} sin cambio
+    </button>
   </div>
 
   <div class="hi-loading" *ngIf="loading">Cargando historial…</div>
@@ -40,7 +56,12 @@
         <tr>
           <th class="c-prod">Producto</th><th>Marca</th><th>Categoría</th><th>Tienda</th>
           <th class="c-num">Actual</th><th class="c-num">Mín</th><th class="c-num">Máx</th><th class="c-num">Prom</th>
-          <th class="c-num">Últ. cambio</th><th class="c-num">Var %</th><th class="c-num">Score</th><th class="c-act"></th>
+          <th class="c-num">Últ. cambio</th>
+          <th class="c-num th-sort" [class.sorted]="sortBy === 'var_asc' || sortBy === 'var_desc'"
+              (click)="toggleVarSort()" title="Ordenar por variación">
+            Var %<span class="sort-ind">{{ sortBy === 'var_asc' ? '↓' : sortBy === 'var_desc' ? '↑' : '⇅' }}</span>
+          </th>
+          <th class="c-num">Score</th><th class="c-act"></th>
         </tr>
       </thead>
       <tbody>
