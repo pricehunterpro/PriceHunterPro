@@ -12,6 +12,8 @@ from app.scrapers.stealth import random_user_agent
 
 _BASE = "https://www.falabella.com.pe/falabella-pe"
 _MAX_PAGES = 5
+_PAGE_SIZE = 56        # productos por página que devuelve el SSR
+_SEGMENT_PAGES = 4     # páginas por rango de precio cuando se segmenta
 
 _CATEGORY_SLUGS = [
     # Tecnología
@@ -70,6 +72,19 @@ _CATEGORY_SLUGS = [
     "/category/cat40498/Belleza-higiene-y-salud",
     "/category/CATG11947/Decohogar",
     "/category/CATG34914/Maleteria-y-viajes",
+    # Muebles — faltaba la línea completa. Lo poco que teníamos entraba de rebote
+    # por marketplace cruzado (un "Centro de TV" aparecía listado bajo Cocinas),
+    # así que ofertas fuertes de Basement Home/Mica se perdían enteras.
+    # Sala sola tiene ~19k productos y con _MAX_PAGES=5 solo se raspan ~280, por
+    # eso además de la L1 se listan las hojas concretas donde están los descuentos.
+    "/category/cat40700/Muebles",
+    "/category/cat7040499/Sala",
+    "/category/CATG15679/Mesas-de-centro",
+    "/category/cat50681/Mesas-de-centro-y-complementos",
+    "/category/cat40549/Muebles-de-comedor",
+    "/category/cat7040498/Muebles-de-Oficina-y-Escritorio",
+    "/category/CATG11948/Dormitorio",
+    "/category/CATG12025/Organizacion",
 ]
 
 
@@ -93,6 +108,55 @@ async def _get_next_data(client: httpx.AsyncClient, url: str) -> dict:
         return json.loads(tag.string) if tag else {}
     except Exception:
         return {}
+
+
+async def _page_props(client: httpx.AsyncClient, url: str) -> dict:
+    data = await _get_next_data(client, url)
+    return (data.get("props") or {}).get("pageProps") or {}
+
+
+def _price_facet_urls(page_props: dict) -> list[str]:
+    """Query strings del facet 'Precio' (HASTA S/50, S/50-S/100, …).
+
+    Falabella NO ofrece orden por descuento: sus `sortOptions` son solo precio,
+    marca y rating (`sortBy` con un valor inválido devuelve un SSR sin results).
+    Sin ese orden, la única forma de llegar a las buenas ofertas de una categoría
+    enorme es cubrir más catálogo, y el facet de precio es el que mejor lo parte:
+    cada rango tiene su propia paginación desde cero.
+    """
+    for facet in page_props.get("facets") or []:
+        if facet.get("name") == "Precio":
+            return [v["url"] for v in (facet.get("values") or []) if v.get("url")]
+    return []
+
+
+async def _paginate(
+    client: httpx.AsyncClient, base_url: str, cat_name: str, max_pages: int
+) -> list[ScrapedProduct]:
+    """Pagina un listado hasta `max_pages`, con las guardas de siempre."""
+    out: list[ScrapedProduct] = []
+    seen_skus: set[str] = set()
+    sep = "&" if "?" in base_url else "?"
+    for page_num in range(1, max_pages + 1):
+        # OJO: el parámetro de paginación real es `page`, NO `currentPage`.
+        # Con `currentPage` el sitio devolvía SIEMPRE la página 1 → las
+        # páginas 2..N eran duplicados que colapsaban a ~1 página útil por
+        # categoría (inflaba `saved` ~6x sin aportar productos).
+        data = await _get_next_data(client, f"{base_url}{sep}page={page_num}")
+        results = (data.get("props") or {}).get("pageProps", {}).get("results") or []
+        if not results:
+            break
+        # Guarda anti-bucle: si la página no trae SKUs nuevos (el sitio
+        # volvió a la 1 al pasarnos del total), dejamos de paginar.
+        page_skus = {str(r.get("skuId") or r.get("productId") or "") for r in results}
+        if page_skus and page_skus <= seen_skus:
+            break
+        seen_skus |= page_skus
+        out.extend(_products_from_results(results, cat_name))
+        # Stop paginating if we got a partial page
+        if len(results) < 20:
+            break
+    return out
 
 
 def _parse_price(raw: str | list) -> Decimal:
@@ -192,31 +256,35 @@ class FalabellaScraper(BaseScraper):
                 for slug in _CATEGORY_SLUGS:
                     raw = slug.split("/")[-1]
                     cat_name = raw.replace("-y-", " y ").replace("-", " ").title()
-                    seen_skus: set[str] = set()
-                    for page_num in range(1, _MAX_PAGES + 1):
-                        # OJO: el parámetro de paginación real es `page`, NO `currentPage`.
-                        # Con `currentPage` el sitio devolvía SIEMPRE la página 1 → las
-                        # páginas 2..N eran duplicados que colapsaban a ~1 página útil por
-                        # categoría (inflaba `saved` ~6x sin aportar productos). sortBy
-                        # rompe el SSR — se omite; DealService ordena en cliente.
-                        url = f"{_BASE}{slug}?page={page_num}"
-                        data = await _get_next_data(client, url)
-                        results = (data.get("props") or {}).get("pageProps", {}).get("results") or []
-                        if not results:
-                            break
-                        # Guarda anti-bucle: si la página no trae SKUs nuevos (el sitio
-                        # volvió a la 1 al pasarnos del total), dejamos de paginar.
-                        page_skus = {
-                            str(r.get("skuId") or r.get("productId") or "") for r in results
-                        }
-                        if page_skus and page_skus <= seen_skus:
-                            break
-                        seen_skus |= page_skus
-                        items = _products_from_results(results, cat_name)
-                        all_products.extend(items)
-                        # Stop paginating if we got a partial page
-                        if len(results) < 20:
-                            break
+                    url = f"{_BASE}{slug}"
+
+                    # Cuántos productos tiene la categoría de verdad. Mundo Bebé
+                    # declara ~30.000 y con 5 páginas veíamos 280: el 0,9%, y ni
+                    # siquiera los más rebajados (el orden por defecto es
+                    # relevancia). Así se perdían ofertas como la silla de comer
+                    # a -72%.
+                    props = await _page_props(client, f"{url}?page=1")
+                    total = int((props.get("pagination") or {}).get("count") or 0)
+
+                    # Solo las categorías que NO caben enteras se parten por rango
+                    # de precio; las chicas (p. ej. Mesas de centro, 245 productos)
+                    # ya se cubren completas y segmentarlas sería gastar requests.
+                    segmentos = (
+                        _price_facet_urls(props)
+                        if total > _MAX_PAGES * _PAGE_SIZE
+                        else []
+                    )
+                    if segmentos:
+                        for facet in segmentos:
+                            all_products.extend(
+                                await _paginate(
+                                    client, f"{url}?{facet}", cat_name, _SEGMENT_PAGES
+                                )
+                            )
+                    else:
+                        all_products.extend(
+                            await _paginate(client, url, cat_name, _MAX_PAGES)
+                        )
         except Exception as exc:
             raise ScraperError(f"Falabella get_category error: {exc}") from exc
         return all_products

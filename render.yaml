@@ -1,0 +1,73 @@
+# Render Blueprint — backend de PriceHunter Pro
+#
+# Solo instancia FREE. El `plan: free` es explícito a propósito: si algún día se
+# quisiera escalar, tiene que ser una decisión consciente, no un descuido.
+#
+# NO contiene secretos: todas las variables van con `sync: false`, lo que le dice
+# a Render que el valor se carga a mano en el dashboard y nunca vive en el repo.
+#
+# El Dockerfile no se toca: su CMD en shell-form ya expande ${PORT}, que es lo
+# que Render inyecta en runtime.
+#
+# Aquí NO se declara ningún almacén Redis, y es deliberado: el "Key Value" free
+# de Render guarda los datos solo en memoria y los pierde en cada reinicio. En
+# este proyecto Redis NO es caché: contiene usuarios con su password_hash, tokens
+# de canales cifrados, el portafolio de reventa y las publicaciones pendientes.
+# Se usa Upstash Redis (free, persistente) y su URL `rediss://` se carga a mano.
+# Verificado: redis-py 5.0.8 resuelve `rediss://` a SSLConnection (TLS) y mantiene
+# decode_responses=False, que es lo que espera el código (hace .decode() manual).
+
+services:
+  - type: web
+    name: pricehunter-backend
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: false          # el despliegue lo dispara el usuario, no cada push
+
+    envVars:
+      # --- App ---
+      - key: APP_NAME
+        sync: false
+      - key: ENVIRONMENT
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+
+      # --- Base de datos (Supabase, se mantiene tal cual) ---
+      - key: DATABASE_URL
+        sync: false
+
+      # --- Redis (caché y estado; ver nota de la cabecera) ---
+      - key: REDIS_URL
+        sync: false
+
+      # --- Auth ---
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: JWT_ALGORITHM
+        sync: false
+      - key: JWT_EXPIRE_MINUTES
+        sync: false
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # --- Telegram ---
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_ADMIN_ID
+        sync: false
+      - key: TELEGRAM_CHANNEL_DEV
+        sync: false
+      - key: TELEGRAM_CHANNEL_PRD
+        sync: false
+
+      # --- Scraping ---
+      - key: SCRAPE_INTERVAL_HOURS
+        sync: false

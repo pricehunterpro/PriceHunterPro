@@ -262,7 +262,17 @@ def _notify_new_alerts(r_log=None) -> int:
                         )
                   )
                   AND sp.original_price >= 100                     -- mínimo S/100 precio original
-                  AND (sp.original_price - sp.current_price) >= 100  -- ahorro real >= S/100
+                  AND (
+                        (sp.original_price - sp.current_price) >= 100  -- ahorro real >= S/100
+                        OR (                                       -- …salvo GLITCH validado por historial.
+                            -- El ahorro absoluto en soles mataba glitches de producto
+                            -- barato: la cafetera Oster a S/32,50 desde S/129,90 (-75%,
+                            -- confirmada por mediana histórica) se quedó fuera por
+                            -- S/2,60 de ahorro. Es justo el contenido que se viraliza.
+                            hc.hist_count >= 3 AND hc.med_hist_price > 0
+                            AND sp.current_price < hc.med_hist_price * 0.30
+                        )
+                  )
                   AND sp.original_price < 100000                  -- guard absoluto anti-basura (parsing corrupto = millones)
                   AND (
                         sp.original_price < sp.current_price * 10  -- caso normal (hasta ~90% off)
@@ -330,9 +340,14 @@ def _notify_new_alerts(r_log=None) -> int:
                  AND c.card_price < c.current_price * :card_ratio)
             )
             -- Ordena por DESCUENTO REAL, sin el viejo `× ahorro_en_soles` que
-            -- empujaba siempre lo caro. Los glitches (is_price_error) se priorizan
-            -- luego en Python. La deseabilidad de marca también se afina en Python.
-            ORDER BY (c.original_price - c.current_price) / c.original_price DESC
+            -- empujaba siempre lo caro. La deseabilidad de marca se afina en Python.
+            -- Los glitches van PRIMERO acá, no solo en Python: el re-orden de Python
+            -- ocurre después de este LIMIT, así que un glitch de -75% (cafetera Oster)
+            -- moría en el corte frente a lámparas de -88% que no son error de precio.
+            -- Medido sobre el pool real: de 5 glitches, el LIMIT dejaba fuera 3.
+            ORDER BY is_price_error DESC,
+                     is_card_glitch DESC,
+                     (c.original_price - c.current_price) / c.original_price DESC
             LIMIT 150
         """), {"card_ratio": card_ratio, "card_min_price": card_min_price}).fetchall()
 
