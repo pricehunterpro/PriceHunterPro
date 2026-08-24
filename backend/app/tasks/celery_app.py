@@ -8,7 +8,7 @@ from celery import Celery
 from celery.schedules import crontab
 from celery.signals import worker_process_init
 from celery.utils.log import get_task_logger
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -166,6 +166,21 @@ def _run_scrape_all_stores() -> dict:
                 registrar_ejecucion(store, False, 0, 0, round(time.time() - _t0, 1), str(exc)[:300])
             except Exception:
                 pass
+
+    # Las medianas historicas viven en la vista materializada `price_medians`
+    # para que la API no las recalcule sobre 1,9M filas en cada request. Este es
+    # el momento de refrescarla: los precios acaban de cambiar. CONCURRENTLY no
+    # bloquea las lecturas, pero exige AUTOCOMMIT (no admite transaccion).
+    try:
+        _t_mv = time.time()
+        with _engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY price_medians"))
+        _push_log(r_log, "PriceMedians",
+                  f"Medianas refrescadas en {round(time.time() - _t_mv, 1)}s", "info")
+    except Exception as exc:
+        # Que falle el refresco no invalida el scrape: la vista sigue sirviendo
+        # los valores del refresco anterior.
+        _push_log(r_log, "PriceMedians", f"No se pudo refrescar: {str(exc)[:120]}", "error")
 
     # Notificar nuevas alertas por Telegram al finalizar todos los scrapers
     try:

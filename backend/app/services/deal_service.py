@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import time
 from copy import deepcopy
 from typing import Any
@@ -24,11 +23,6 @@ _engine = create_engine(
     executemany_mode="values_plus_batch",       # bulk insert/update en pocas sentencias, no miles de round-trips
 )
 
-# Caché en memoria de los items. La data solo cambia cuando corre un scrape
-# (pocas veces al día), así que un TTL corto evita re-consultar ~11k filas en
-# cada request (get_deals llama _load_items dos veces por llamada).
-_CACHE_TTL_SECONDS = 180
-_items_cache: dict[str, Any] = {"ts": 0.0, "items": None}
 
 def _hc(d: dict) -> dict:
     d.setdefault("avgMarketPrice", 0.0)
@@ -50,113 +44,191 @@ _HARDCODED: list[dict[str, Any]] = [
 ]
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# El filtrado, el orden y la paginación se hacen en SQL.
+#
+# Antes se traían ~98.000 filas a memoria en CADA petición para pintar 50, y
+# la mediana histórica se recalculaba sobre 1,9M filas de price_history cada
+# vez: 120s por request, insostenible en cualquier instancia pequeña. Ahora
+# las medianas viven en la vista materializada `price_medians` (se refresca
+# tras cada scrape) y la base de datos devuelve solo la página pedida.
+#
+# `price_medians` congela el corte "scraped_at < NOW() - 12h" en el momento
+# del refresco; como se refresca tras cada scrape (varias veces al día), la
+# diferencia frente a calcularlo al vuelo es irrelevante.
+# ══════════════════════════════════════════════════════════════════════════
+
+_BASE_CTE = """
+WITH base AS (
+    SELECT sp.id,
+           sp.store,
+           p.name,
+           COALESCE(p.brand, '')                                        AS brand,
+           COALESCE(p.category, 'General')                              AS category,
+           COALESCE(sp.url, '')                                         AS url,
+           COALESCE(p.image_url, '')                                    AS image_url,
+           CAST(sp.current_price AS float)                              AS current_price,
+           -- equivale al `original_price or current_price or 0` de antes
+           CAST(COALESCE(NULLIF(sp.original_price, 0), sp.current_price, 0) AS float) AS original_price,
+           CAST(COALESCE(sp.card_price, 0) AS float)                    AS card_price,
+           CAST(COALESCE(sp.discount_percentage, 0) AS float)           AS discount_pct,
+           sp.in_stock,
+           sp.last_scraped_at,
+           CAST(COALESCE(m.median_price, 0) AS float)                   AS avg_hist_price,
+           COALESCE(m.hist_count, 0)                                    AS hist_count
+    FROM store_products sp
+    JOIN products p ON p.id = sp.product_id
+    LEFT JOIN price_medians m ON m.store_product_id = sp.id
+    WHERE sp.current_price > 0
+      AND sp.current_price < 100000     -- oculta productos con precio corrupto
+      AND sp.in_stock = true
+), calc AS (
+    SELECT b.*,
+           CASE WHEN b.current_price > 0
+                THEN ROUND(CAST(((b.original_price - b.current_price) / b.current_price) * 100 AS numeric), 2)
+                ELSE 0 END                                              AS margin_pct,
+           -- below_market: al menos 15% por debajo de su propia mediana histórica,
+           -- exigiendo 2+ registros de más de 12h atrás
+           (b.hist_count >= 2 AND b.avg_hist_price > 0
+            AND b.current_price < b.avg_hist_price * 0.85)              AS below_market,
+           CASE WHEN b.avg_hist_price > 0
+                THEN ROUND(CAST((1 - b.current_price / b.avg_hist_price) * 100 AS numeric), 1)
+                ELSE 0 END                                              AS mkt_diff_pct,
+           -- Precio con tarjeta (CMR/Única). `card_glitch` = por debajo de la
+           -- mitad del precio público: eso ya no es beneficio de tarjeta (los
+           -- normales son 3-10%), es el glitch que se viraliza.
+           CASE WHEN b.card_price > 0 AND b.original_price > 0
+                THEN ROUND(CAST((1 - b.card_price / b.original_price) * 100 AS numeric), 1)
+                ELSE 0 END                                              AS card_discount_pct,
+           (b.card_price > 0 AND b.current_price > 0
+            AND b.card_price < b.current_price * 0.5)                   AS card_glitch
+    FROM base b
+)
+"""
+
+# Sanidad: un precio original de más de 15x el actual es dato inventado.
+_SANIDAD = "NOT (original_price > 0 AND current_price > 0 AND original_price > current_price * 15)"
+
+_ORDENES = {
+    "margin":      "margin_pct DESC NULLS LAST",
+    "price_asc":   "current_price ASC",
+    "price_desc":  "current_price DESC NULLS LAST",
+    "market_diff": "mkt_diff_pct DESC NULLS LAST",
+    "discount":    "discount_pct DESC NULLS LAST",
+}
+
+# Los desplegables cambian solo cuando corre un scrape; no hace falta
+# recalcularlos en cada request.
+_FILTROS_TTL_SECONDS = 300
+_filtros_cache: dict[str, Any] = {}
+
+
+def _escapar_regex(texto: str) -> str:
+    """Escapa metacaracteres para el motor de expresiones regulares de Postgres."""
+    especiales = set('\\.^$*+?()[]{}|-')
+    return ''.join('\\' + c if c in especiales else c for c in texto)
+
+
+def _f(valor: Any) -> float:
+    """Los ROUND(...) de Postgres llegan como Decimal; el JSON quiere float."""
+    return float(valor) if valor is not None else 0.0
+
+
+def _fila_a_item(r: Any) -> dict[str, Any]:
+    return {
+        "id": r.id,
+        "store": r.store,
+        "name": r.name,
+        "brand": r.brand,
+        "category": r.category,
+        "url": r.url,
+        "imageUrl": r.image_url,
+        "currentPrice": _f(r.current_price),
+        "originalPrice": _f(r.original_price),
+        "discountPct": _f(r.discount_pct),
+        "marginPct": _f(r.margin_pct),
+        "inStock": bool(r.in_stock),
+        "scrapedAt": r.last_scraped_at.isoformat() if r.last_scraped_at else "",
+        "avgMarketPrice": _f(r.avg_hist_price),
+        "belowMarket": bool(r.below_market),
+        "mktDiffPct": _f(r.mkt_diff_pct),
+        "cardPrice": _f(r.card_price),
+        "cardDiscountPct": _f(r.card_discount_pct),
+        "cardGlitch": bool(r.card_glitch),
+    }
+
+
 class DealService:
-    def _load_items(self) -> list[dict[str, Any]]:
-        now = time.time()
-        cached = _items_cache["items"]
-        if cached is not None and (now - _items_cache["ts"]) < _CACHE_TTL_SECONDS:
-            return cached
-        try:
-            with Session(_engine) as session:
-                rows = session.execute(text("""
-                    WITH hist AS (
-                        SELECT
-                            store_product_id,
-                            -- MEDIANA (no promedio): un solo registro corrupto que pase el
-                            -- filtro <100k (p.ej. S/99.349 en unos audífonos) disparaba el
-                            -- AVG a S/20.149 y mostraba "PROM. HISTÓRICO" absurdo + "98% bajo
-                            -- mercado" falso. La mediana es inmune a esos outliers.
-                            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS avg_hist_price,
-                            COUNT(*)    AS hist_count
-                        FROM price_history
-                        WHERE price > 0
-                          AND price < 100000            -- excluye precios basura (parsing corrupto)
-                          AND scraped_at < NOW() - INTERVAL '12 hours'
-                        GROUP BY store_product_id
-                    )
-                    SELECT
-                        sp.id,
-                        sp.store,
-                        p.name,
-                        COALESCE(p.brand, '')              AS brand,
-                        COALESCE(p.category, 'General')    AS category,
-                        COALESCE(sp.url, '')               AS url,
-                        COALESCE(p.image_url, '')          AS image_url,
-                        CAST(sp.current_price  AS float)   AS current_price,
-                        CAST(sp.original_price AS float)   AS original_price,
-                        CAST(COALESCE(sp.card_price, 0) AS float) AS card_price,
-                        CAST(sp.discount_percentage AS float) AS discount_pct,
-                        sp.in_stock,
-                        sp.last_scraped_at,
-                        CAST(COALESCE(h.avg_hist_price, 0) AS float) AS avg_hist_price,
-                        COALESCE(h.hist_count, 0)                    AS hist_count
-                    FROM store_products sp
-                    JOIN products p ON p.id = sp.product_id
-                    LEFT JOIN hist h ON h.store_product_id = sp.id
-                    WHERE sp.current_price > 0
-                      AND sp.current_price < 100000     -- oculta productos con precio corrupto
-                      AND sp.in_stock = true
-                    ORDER BY sp.discount_percentage DESC NULLS LAST
-                    -- Con Shopstar (24.8k in_stock) el universo pasó de ~34k a ~59k y el
-                    -- LIMIT 50000 recortaba ~9.2k productos en silencio (los de menor
-                    -- descuento, por el ORDER BY). Se sube con margen para crecer.
-                    LIMIT 120000
-                """)).fetchall()
 
-                if not rows:
-                    return deepcopy(_HARDCODED)
+    def _condiciones(
+        self,
+        stores: list[str] | None,
+        categories: list[str] | None,
+        brands: list[str] | None,
+        q: str,
+        min_discount: int,
+        min_price: float,
+        below_market: bool,
+    ) -> tuple[list[str], dict[str, Any]]:
+        cond: list[str] = []
+        params: dict[str, Any] = {}
+        if stores:
+            cond.append("store = ANY(:stores)");         params["stores"] = list(stores)
+        if categories:
+            cond.append("category = ANY(:categories)");  params["categories"] = list(categories)
+        if brands:
+            cond.append("brand = ANY(:brands)");         params["brands"] = list(brands)
+        if min_discount:
+            cond.append("discount_pct >= :min_discount"); params["min_discount"] = min_discount
+        if min_price:
+            cond.append("current_price >= :min_price");   params["min_price"] = min_price
+        if below_market:
+            cond.append("below_market")
+        if q:
+            # `\y` es el límite de palabra de Postgres, equivalente al `\b` de Python
+            cond.append(
+                "(lower(name) || ' ' || lower(brand) || ' ' || lower(category)"
+                " || ' ' || lower(store)) ~ :q_re"
+            )
+            params["q_re"] = "\\y" + _escapar_regex(q.lower())
+        return cond, params
 
-                items = []
-                for r in rows:
-                    orig = r.original_price or r.current_price or 0
-                    margin = 0.0
-                    current = float(r.current_price or 0)
-                    avg_hist = float(r.avg_hist_price or 0)
-                    hist_count = int(r.hist_count or 0)
-                    if current > 0:
-                        margin = round(((orig - current) / current) * 100, 2)
-                    # below_market: precio actual al menos 15% menor al promedio histórico propio
-                    # requiere al menos 2 registros históricos de más de 12h atrás
-                    below_market = (
-                        hist_count >= 2
-                        and avg_hist > 0
-                        and current < avg_hist * 0.85
-                    )
-                    mkt_diff_pct = round((1 - current / avg_hist) * 100, 1) if avg_hist > 0 else 0.0
-                    avg_mkt = avg_hist
-                    scraped_at = r.last_scraped_at.isoformat() if r.last_scraped_at else ""
-                    # Precio con tarjeta (CMR/Única). `card_glitch` = por debajo de
-                    # la mitad del precio público: eso ya no es beneficio de tarjeta
-                    # (los normales son 3-10%), es el glitch que se viraliza.
-                    card = float(getattr(r, "card_price", 0) or 0)
-                    card_discount = round((1 - card / orig) * 100, 1) if card > 0 and orig > 0 else 0.0
-                    card_glitch = bool(card > 0 and current > 0 and card < current * 0.5)
-                    items.append({
-                        "id": r.id,
-                        "store": r.store,
-                        "name": r.name,
-                        "brand": r.brand,
-                        "category": r.category,
-                        "url": r.url,
-                        "imageUrl": r.image_url,
-                        "currentPrice": current,
-                        "originalPrice": float(orig),
-                        "discountPct": float(r.discount_pct or 0),
-                        "marginPct": margin,
-                        "inStock": bool(r.in_stock),
-                        "scrapedAt": scraped_at,
-                        "avgMarketPrice": avg_mkt,
-                        "belowMarket": below_market,
-                        "mktDiffPct": mkt_diff_pct,
-                        "cardPrice": card,
-                        "cardDiscountPct": card_discount,
-                        "cardGlitch": card_glitch,
-                    })
-                _items_cache["items"] = items
-                _items_cache["ts"] = now
-                return items
-        except Exception:
-            return deepcopy(_HARDCODED)
+    def _filtros_disponibles(
+        self, session: Session, stores: list[str] | None, categories: list[str] | None, q: str
+    ) -> dict[str, list[str]]:
+        """Desplegables en cascada: las tiendas siempre completas, las categorías
+        acotadas a las tiendas elegidas, y las marcas a tiendas + categorías."""
+        clave = (tuple(stores or ()), tuple(categories or ()), q)
+        guardado = _filtros_cache.get("valor")
+        if guardado is not None and _filtros_cache.get("clave") == clave \
+                and (time.time() - _filtros_cache.get("ts", 0)) < _FILTROS_TTL_SECONDS:
+            return guardado
+
+        # categorías: acotadas por las tiendas elegidas (+ búsqueda)
+        cond_cat, params = self._condiciones(stores, None, None, q, 0, 0.0, False)
+        where_cat = (" WHERE " + " AND ".join(cond_cat)) if cond_cat else ""
+
+        # marcas: acotadas por tiendas + categorías (+ búsqueda)
+        cond_marca, params_marca = self._condiciones(stores, categories, None, q, 0, 0.0, False)
+        cond_marca.append("brand <> ''")
+        where_marca = " WHERE " + " AND ".join(cond_marca)
+        params.update(params_marca)
+
+        filas = session.execute(text(_BASE_CTE + f"""
+            SELECT 'store' AS tipo, store AS valor FROM base GROUP BY store
+            UNION ALL
+            SELECT 'category', category FROM base{where_cat} GROUP BY category
+            UNION ALL
+            SELECT 'brand', brand FROM base{where_marca} GROUP BY brand
+        """), params).fetchall()
+
+        resultado = {
+            "stores":     sorted({f.valor for f in filas if f.tipo == "store"}),
+            "categories": sorted({f.valor for f in filas if f.tipo == "category"}),
+            "brands":     sorted({f.valor for f in filas if f.tipo == "brand"}),
+        }
+        _filtros_cache.update({"clave": clave, "valor": resultado, "ts": time.time()})
+        return resultado
 
     def get_deals(
         self,
@@ -171,89 +243,79 @@ class DealService:
         limit: int = 50,
         below_market: bool = False,
     ) -> dict[str, Any]:
-        items = self._load_items()
+        try:
+            cond, params = self._condiciones(stores, categories, brands, q, min_discount, min_price, below_market)
+            cond.append(_SANIDAD)
+            where = " WHERE " + " AND ".join(cond)
+            # El id desempata para que la paginación sea estable entre páginas.
+            orden = _ORDENES.get((sort or "").lower(), _ORDENES["discount"]) + ", id"
+            params["limit"] = max(1, limit)
+            params["offset"] = max(0, (max(1, page) - 1) * max(1, limit))
 
-        filtered = []
-        for item in items:
-            if stores and item["store"] not in stores:
-                continue
-            if categories and item["category"] not in categories:
-                continue
-            if brands and item["brand"] not in brands:
-                continue
-            if min_discount and item["discountPct"] < min_discount:
-                continue
-            if min_price and item["currentPrice"] < min_price:
-                continue
-            # Sanidad: precio original no puede ser más de 15x el precio actual (datos inventados)
-            if item["originalPrice"] > 0 and item["currentPrice"] > 0:
-                if item["originalPrice"] > item["currentPrice"] * 15:
-                    continue
-            if below_market and not item.get("belowMarket"):
-                continue
-            if q:
-                haystack = " ".join([item["name"], item["brand"], item["category"], item["store"]]).lower()
-                pattern = r'\b' + re.escape(q.lower())
-                if not re.search(pattern, haystack):
-                    continue
-            filtered.append(item)
+            with Session(_engine) as session:
+                filas = session.execute(text(_BASE_CTE + f"""
+                    SELECT *, COUNT(*) OVER() AS total_filtrado
+                    FROM calc{where}
+                    ORDER BY {orden}
+                    LIMIT :limit OFFSET :offset
+                """), params).fetchall()
 
-        filtered = self._sort(filtered, sort)
-        total = len(filtered)
-        start = (page - 1) * limit
-        page_items = filtered[start: start + limit]
+                total = int(filas[0].total_filtrado) if filas else 0
+                items = [_fila_a_item(f) for f in filas]
+                filtros = self._filtros_disponibles(session, stores, categories, q)
 
-        all_items = self._load_items()
-
-        # Filtros en cascada:
-        # stores   → siempre todos (sin filtrar)
-        # categories → solo las disponibles en las tiendas seleccionadas (+ query)
-        # brands   → solo las disponibles en tiendas + categoría seleccionados (+ query)
-        def _matches_q(item: dict) -> bool:
-            if not q:
-                return True
-            haystack = " ".join([item["name"], item["brand"], item["category"], item["store"]]).lower()
-            return bool(re.search(r'\b' + re.escape(q.lower()), haystack))
-
-        by_store = [i for i in all_items if (not stores or i["store"] in stores) and _matches_q(i)]
-        by_store_and_cat = [i for i in by_store if not categories or i["category"] in categories]
-
-        return {
-            "items": page_items,
-            "total": total,
-            "filters": {
-                "stores":     sorted({i["store"]    for i in all_items}),
-                "categories": sorted({i["category"] for i in by_store}),
-                "brands":     sorted({i["brand"]    for i in by_store_and_cat if i["brand"]}),
-            },
-        }
+            return {"items": items, "total": total, "filters": filtros}
+        except Exception:
+            copia = deepcopy(_HARDCODED)
+            return {
+                "items": copia,
+                "total": len(copia),
+                "filters": {
+                    "stores":     sorted({i["store"]    for i in copia}),
+                    "categories": sorted({i["category"] for i in copia}),
+                    "brands":     sorted({i["brand"]    for i in copia if i["brand"]}),
+                },
+            }
 
     def get_stats(self) -> dict[str, Any]:
-        items = self._sort(self._load_items(), "discount")
-        if not items:
-            return {"total": 0, "bestDiscount": 0, "bestMargin": 0, "minPrice": 0, "lastSync": "Nunca", "byStore": {}}
+        vacio = {"total": 0, "bestDiscount": 0, "bestMargin": 0, "minPrice": 0, "lastSync": "Nunca", "byStore": {}}
+        try:
+            with Session(_engine) as session:
+                r = session.execute(text(_BASE_CTE + """
+                    SELECT count(*)                                              AS total,
+                           ROUND(CAST(max(discount_pct)  AS numeric), 2)         AS mejor_desc,
+                           ROUND(CAST(max(margin_pct)    AS numeric), 2)         AS mejor_margen,
+                           ROUND(CAST(min(current_price) AS numeric), 2)         AS precio_min,
+                           (SELECT last_scraped_at FROM calc
+                             ORDER BY discount_pct DESC NULLS LAST, id LIMIT 1)  AS ultimo_scrape
+                    FROM calc
+                """)).fetchone()
 
-        by_store: dict[str, int] = {}
-        for item in items:
-            by_store[item["store"]] = by_store.get(item["store"], 0) + 1
+                if not r or not r.total:
+                    return vacio
 
-        return {
-            "total": len(items),
-            "bestDiscount": round(items[0]["discountPct"], 2),
-            "bestMargin": round(max(i["marginPct"] for i in items), 2),
-            "minPrice": round(min(i["currentPrice"] for i in items), 2),
-            "lastSync": items[0]["scrapedAt"] or "Nunca",
-            "byStore": by_store,
-        }
+                por_tienda = session.execute(text(_BASE_CTE + """
+                    SELECT store, count(*) AS n FROM base GROUP BY store
+                """)).fetchall()
 
-    def _sort(self, items: list[dict[str, Any]], sort: str) -> list[dict[str, Any]]:
-        key = sort.lower()
-        if key == "margin":
-            return sorted(items, key=lambda i: i["marginPct"], reverse=True)
-        if key == "price_asc":
-            return sorted(items, key=lambda i: i["currentPrice"])
-        if key == "price_desc":
-            return sorted(items, key=lambda i: i["currentPrice"], reverse=True)
-        if key == "market_diff":
-            return sorted(items, key=lambda i: i.get("mktDiffPct", 0), reverse=True)
-        return sorted(items, key=lambda i: i["discountPct"], reverse=True)
+            return {
+                "total": int(r.total),
+                "bestDiscount": _f(r.mejor_desc),
+                "bestMargin": _f(r.mejor_margen),
+                "minPrice": _f(r.precio_min),
+                "lastSync": r.ultimo_scrape.isoformat() if r.ultimo_scrape else "Nunca",
+                "byStore": {f.store: int(f.n) for f in por_tienda},
+            }
+        except Exception:
+            items = deepcopy(_HARDCODED)
+            por_tienda: dict[str, int] = {}
+            for i in items:
+                por_tienda[i["store"]] = por_tienda.get(i["store"], 0) + 1
+            return {
+                "total": len(items),
+                "bestDiscount": round(max(i["discountPct"] for i in items), 2),
+                "bestMargin": round(max(i["marginPct"] for i in items), 2),
+                "minPrice": round(min(i["currentPrice"] for i in items), 2),
+                "lastSync": items[0]["scrapedAt"] or "Nunca",
+                "byStore": por_tienda,
+            }
