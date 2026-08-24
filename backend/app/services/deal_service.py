@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from copy import deepcopy
 from typing import Any
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 _sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 # statement_timeout=600s: el default de Supabase (2 min) cancela las escrituras
@@ -266,6 +268,9 @@ class DealService:
 
             return {"items": items, "total": total, "filters": filtros}
         except Exception:
+            # Sin este log, un fallo de consulta se disfrazaba de "7 ofertas":
+            # la API devolvia la lista de ejemplo y nadie se enteraba.
+            logger.exception("get_deals fallo; se devuelven los datos de ejemplo")
             copia = deepcopy(_HARDCODED)
             return {
                 "items": copia,
@@ -307,6 +312,7 @@ class DealService:
                 "byStore": {f.store: int(f.n) for f in por_tienda},
             }
         except Exception:
+            logger.exception("get_stats fallo; se devuelven los datos de ejemplo")
             items = deepcopy(_HARDCODED)
             por_tienda: dict[str, int] = {}
             for i in items:
