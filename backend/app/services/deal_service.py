@@ -124,6 +124,13 @@ _ORDENES = {
 _FILTROS_TTL_SECONDS = 300
 _filtros_cache: dict[str, Any] = {}
 
+# El total de resultados tambien cambia solo con el scrape, y contarlo cuesta
+# mas que traer la pagina: 1,3s el COUNT frente a 0,6s los 50 items. Se cachea
+# por combinacion de filtros para que el caso normal no lo pague.
+_TOTALES_TTL_SECONDS = 300
+_TOTALES_MAX = 200
+_totales_cache: dict[tuple, tuple[float, int]] = {}
+
 
 def _escapar_regex(texto: str) -> str:
     """Escapa metacaracteres para el motor de expresiones regulares de Postgres."""
@@ -195,6 +202,31 @@ class DealService:
             params["q_re"] = "\\y" + _escapar_regex(q.lower())
         return cond, params
 
+    def _total(
+        self, session: Session, where: str, params: dict[str, Any],
+        n_items: int, page: int, limit: int,
+    ) -> int:
+        """Total de resultados del filtro, contado lo menos posible."""
+        # Si la primera página no llega a llenarse, el total ya lo sabemos.
+        if page <= 1 and n_items < limit:
+            return n_items
+
+        clave = (where, tuple(sorted(
+            (k, str(v)) for k, v in params.items() if k not in ("limit", "offset")
+        )))
+        guardado = _totales_cache.get(clave)
+        if guardado and (time.time() - guardado[0]) < _TOTALES_TTL_SECONDS:
+            return guardado[1]
+
+        total = int(session.execute(
+            text(_BASE_CTE + f"SELECT count(*) AS n FROM calc{where}"), params
+        ).scalar() or 0)
+
+        if len(_totales_cache) >= _TOTALES_MAX:      # evita crecer sin control
+            _totales_cache.clear()
+        _totales_cache[clave] = (time.time(), total)
+        return total
+
     def _filtros_disponibles(
         self, session: Session, stores: list[str] | None, categories: list[str] | None, q: str
     ) -> dict[str, list[str]]:
@@ -256,14 +288,13 @@ class DealService:
 
             with Session(_engine) as session:
                 filas = session.execute(text(_BASE_CTE + f"""
-                    SELECT *, COUNT(*) OVER() AS total_filtrado
-                    FROM calc{where}
+                    SELECT * FROM calc{where}
                     ORDER BY {orden}
                     LIMIT :limit OFFSET :offset
                 """), params).fetchall()
 
-                total = int(filas[0].total_filtrado) if filas else 0
                 items = [_fila_a_item(f) for f in filas]
+                total = self._total(session, where, params, len(items), page, limit)
                 filtros = self._filtros_disponibles(session, stores, categories, q)
 
             return {"items": items, "total": total, "filters": filtros}
