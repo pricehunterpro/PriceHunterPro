@@ -1,0 +1,40 @@
+name: Mantener el backend despierto
+
+# El plan free de Render apaga el servicio tras 15 minutos sin trafico y
+# despertarlo cuesta ~50s: el primer usuario de cada rato se come la espera.
+# Este ping lo mantiene en pie sin depender de que el PC de nadie este encendido.
+#
+# OJO con las 750 horas/mes de instancia gratuita: un servicio despierto 24/7
+# consume ~730h, asi que CABE, pero muy justo y solo mientras haya un unico
+# servicio free en la cuenta. Si algun dia se anade otro, se pasa del limite y
+# Render los suspende hasta el mes siguiente. La solucion sin sobresaltos sigue
+# siendo un plan de pago.
+#
+# GitHub no garantiza la puntualidad de los cron: en horas punta puede
+# retrasarlos varios minutos. Por eso se pide cada 10 y no cada 14.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:        # permite lanzarlo a mano desde la pestana Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Despertar el backend
+        run: |
+          URL="https://pricehunter-backend-z115.onrender.com/health"
+          for intento in 1 2 3; do
+            codigo=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 120 "$URL" || echo "000")
+            echo "intento $intento -> HTTP $codigo"
+            if [ "$codigo" = "200" ]; then
+              echo "backend despierto"
+              exit 0
+            fi
+            sleep 20
+          done
+          # Un ping fallido no deberia pintar el repo de rojo: puede ser un
+          # despliegue en curso. Si falla siempre, se ve en el historial.
+          echo "::warning::el backend no respondio 200 tras 3 intentos"
