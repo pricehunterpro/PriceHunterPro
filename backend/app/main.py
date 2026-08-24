@@ -25,18 +25,26 @@ from app.api.v1.publicador import router as publicador_router
 from app.api.v1.products import router as products_router
 from app.api.v1.watchlist import router as watchlist_router
 from app.api.v1.settings import router as settings_router
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.core.authz import enforce_write_authorization
 from app.core.config import get_settings
 
 settings = get_settings()
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
+# OJO con el orden: Starlette ejecuta primero el ultimo middleware anadido,
+# asi que CORS debe registrarse DESPUES del de autorizacion para que los 401
+# y 403 salgan tambien con las cabeceras CORS puestas.
+app.add_middleware(BaseHTTPMiddleware, dispatch=enforce_write_authorization)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(ai_router,          prefix="/api/v1")

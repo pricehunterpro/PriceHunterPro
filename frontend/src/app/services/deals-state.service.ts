@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { finalize } from 'rxjs';
+import { AuthService } from './auth.service';
 
 export interface Deal {
   id: string; store: string; name: string; brand: string; category: string;
@@ -20,6 +21,7 @@ export interface StatsResponse {
 @Injectable({ providedIn: 'root' })
 export class DealsStateService {
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
 
   stats: StatsResponse | null = null;
   lastSyncRaw = '';
@@ -58,9 +60,10 @@ export class DealsStateService {
   init(): void {
     if (this._ready) return;
     this._ready = true;
-    const keyInUrl = new URLSearchParams(window.location.search).get('key') === 'ph2026';
-    if (keyInUrl) sessionStorage.setItem('ph_admin', '1');
-    this.isAdmin = keyInUrl || sessionStorage.getItem('ph_admin') === '1';
+    // El modo admin sale EXCLUSIVAMENTE del rol firmado en el JWT: no hay
+    // atajo por querystring ni bandera en sessionStorage (el backend valida
+    // el mismo rol en cada escritura, esto es solo para pintar la UI).
+    this.isAdmin = this.auth.isAdmin();
     this.loadStats();
     this.loadDeals();
     this.loadAlerts();

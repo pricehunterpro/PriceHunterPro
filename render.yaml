@@ -57,6 +57,10 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # Origenes permitidos por CORS (lista separada por comas). El backend se
+      # niega a arrancar si vale "*" con ENVIRONMENT=production.
+      - key: CORS_ORIGINS
+        sync: false
 
       # --- Telegram ---
       - key: TELEGRAM_BOT_TOKEN

@@ -459,26 +459,6 @@
 }
 .pp-logout:hover { background: rgba(255,80,80,.1); color: #ff6b6b; border-color: rgba(255,80,80,.2); }
 
-/* Campo de clave admin */
-.pp-key-wrap {
-  display: flex; gap: 6px; margin-bottom: 6px;
-}
-.pp-key-input {
-  flex: 1; background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 8px; padding: 8px 10px;
-  color: var(--text); font-size: 12px; outline: none;
-}
-.pp-key-input:focus { border-color: rgba(0,229,143,.4); }
-.pp-key-btn {
-  background: var(--accent); color: #07120c;
-  border: none; border-radius: 8px;
-  padding: 8px 12px; font-size: 12px; font-weight: 700;
-  cursor: pointer; white-space: nowrap;
-}
-.pp-key-btn:hover { background: #00c98e; }
-.pp-key-error { font-size: 11px; color: #ff6b6b; margin: 4px 0 0; }
-
 /* Spin animation for scrape button */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin .9s linear infinite; }
