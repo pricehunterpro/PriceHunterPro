@@ -57,6 +57,15 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # Usuarios viewer del panel (el backend los valida en /auth/admin-login).
+      - key: TEST_USER
+        sync: false
+      - key: TEST_PASSWORD
+        sync: false
+      - key: TEST2_USER
+        sync: false
+      - key: TEST2_PASSWORD
+        sync: false
       # Origenes permitidos por CORS (lista separada por comas). El backend se
       # niega a arrancar si vale "*" con ENVIRONMENT=production.
       - key: CORS_ORIGINS
