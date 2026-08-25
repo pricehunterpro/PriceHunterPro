@@ -18,6 +18,7 @@ def get_deals(
     page: int = Query(default=1),
     limit: int = Query(default=50),
     below_market: bool = Query(default=False),
+    dedupe: bool = Query(default=False),
 ) -> dict[str, object]:
     stores = [value for value in (store or "").split(",") if value] or None
     categories = [value for value in (category or "").split(",") if value] or None
@@ -34,6 +35,7 @@ def get_deals(
         page=page,
         limit=limit,
         below_market=below_market,
+        dedupe=dedupe,
     )
 
 

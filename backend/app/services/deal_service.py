@@ -23,6 +23,14 @@ _engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=1800,                          # recicla conexiones antes de que el pooler de Supabase las corte (evita SSL EOF)
     executemany_mode="values_plus_batch",       # bulk insert/update en pocas sentencias, no miles de round-trips
+    # El session pooler de Supabase corta en 15 clientes: "(EMAXCONNSESSION) max
+    # clients reached in session mode". Los valores por defecto de SQLAlchemy
+    # (5 + 10 de overflow) son exactamente esos 15, o sea que un solo proceso
+    # podia dejar sin conexiones al scraper. Con 5 queda margen para el worker
+    # de Celery y para cualquier consulta manual.
+    pool_size=3,
+    max_overflow=2,
+    pool_timeout=30,                            # antes de rendirse, espera turno
 )
 
 
@@ -61,8 +69,22 @@ _HARDCODED: list[dict[str, Any]] = [
 # ══════════════════════════════════════════════════════════════════════════
 
 _BASE_CTE = """
+WITH calc AS (SELECT * FROM deal_snapshot),
+     base AS (SELECT * FROM calc)
+"""
+
+# El calculo que hay debajo es el que alimenta `deal_snapshot`; se conserva aqui
+# porque es la definicion viva de la vista (backend/sql/optimizacion_lecturas.sql
+# la recrea a partir de esto) y porque documenta de donde sale cada campo.
+#
+# Se materializa porque `below_market` y `mkt_diff_pct` nacen de un JOIN con las
+# medianas, y ningun indice puede cubrir un calculo asi: filtrar por
+# below_market costaba 9s y ordenar por bajada real 45s. Contra la vista, la
+# misma consulta tarda 0,33s.
+_CALCULO_SNAPSHOT = """
 WITH base AS (
     SELECT sp.id,
+           sp.product_id,
            sp.store,
            p.name,
            COALESCE(p.brand, '')                                        AS brand,
@@ -106,6 +128,7 @@ WITH base AS (
             AND b.card_price < b.current_price * 0.5)                   AS card_glitch
     FROM base b
 )
+SELECT * FROM calc
 """
 
 # Sanidad: un precio original de más de 15x el actual es dato inventado.
@@ -130,6 +153,11 @@ _filtros_cache: dict[str, Any] = {}
 _TOTALES_TTL_SECONDS = 300
 _TOTALES_MAX = 200
 _totales_cache: dict[tuple, tuple[float, int]] = {}
+
+# Cuantas filas de mas se piden cuando hay que deduplicar, para que tras quitar
+# los repetidos sigan quedando suficientes. Con 3x sobra: los duplicados son
+# 7.924 de 261.848 filas, y rara vez un producto esta en mas de 3 tiendas.
+_DEDUPE_MARGEN = 3
 
 
 def _escapar_regex(texto: str) -> str:
@@ -204,22 +232,23 @@ class DealService:
 
     def _total(
         self, session: Session, where: str, params: dict[str, Any],
-        n_items: int, page: int, limit: int,
+        n_items: int, page: int, limit: int, dedupe: bool = False,
     ) -> int:
         """Total de resultados del filtro, contado lo menos posible."""
         # Si la primera página no llega a llenarse, el total ya lo sabemos.
         if page <= 1 and n_items < limit:
             return n_items
 
-        clave = (where, tuple(sorted(
+        clave = (where, dedupe, tuple(sorted(
             (k, str(v)) for k, v in params.items() if k not in ("limit", "offset")
         )))
         guardado = _totales_cache.get(clave)
         if guardado and (time.time() - guardado[0]) < _TOTALES_TTL_SECONDS:
             return guardado[1]
 
+        cuenta = "count(DISTINCT product_id)" if dedupe else "count(*)"
         total = int(session.execute(
-            text(_BASE_CTE + f"SELECT count(*) AS n FROM calc{where}"), params
+            text(_BASE_CTE + f"SELECT {cuenta} AS n FROM calc{where}"), params
         ).scalar() or 0)
 
         if len(_totales_cache) >= _TOTALES_MAX:      # evita crecer sin control
@@ -276,6 +305,7 @@ class DealService:
         page: int = 1,
         limit: int = 50,
         below_market: bool = False,
+        dedupe: bool = False,
     ) -> dict[str, Any]:
         try:
             cond, params = self._condiciones(stores, categories, brands, q, min_discount, min_price, below_market)
@@ -286,6 +316,16 @@ class DealService:
             params["limit"] = max(1, limit)
             params["offset"] = max(0, (max(1, page) - 1) * max(1, limit))
 
+            # El mismo producto suele estar en varias tiendas del mismo grupo
+            # (7.924 casos comparten product_id) y ocupaba un hueco por tienda.
+            #
+            # Se deduplica en memoria y no con DISTINCT ON: esa version obligaba
+            # a ordenar el conjunto entero por product_id y tardaba 49s (ademas
+            # de agotar el disco temporal de Supabase). Pedir un margen de filas
+            # y quedarse con la primera de cada producto cuesta milisegundos.
+            if dedupe:
+                params["limit"] = max(1, limit) * _DEDUPE_MARGEN
+
             with Session(_engine) as session:
                 filas = session.execute(text(_BASE_CTE + f"""
                     SELECT * FROM calc{where}
@@ -293,8 +333,21 @@ class DealService:
                     LIMIT :limit OFFSET :offset
                 """), params).fetchall()
 
+                if dedupe:
+                    vistos: set[Any] = set()
+                    unicas = []
+                    for f in filas:
+                        if f.product_id in vistos:
+                            continue
+                        vistos.add(f.product_id)
+                        unicas.append(f)
+                        if len(unicas) >= limit:
+                            break
+                    filas = unicas
+
                 items = [_fila_a_item(f) for f in filas]
-                total = self._total(session, where, params, len(items), page, limit)
+                params["limit"] = max(1, limit)      # el total cuenta sobre el filtro, no sobre el margen
+                total = self._total(session, where, params, len(items), page, limit, dedupe)
                 filtros = self._filtros_disponibles(session, stores, categories, q)
 
             return {"items": items, "total": total, "filters": filtros}

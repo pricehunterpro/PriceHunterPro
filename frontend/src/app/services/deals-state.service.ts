@@ -48,7 +48,7 @@ export class DealsStateService {
   gangaDeals: Deal[] = [];
   gangasTotal = 0;
   loadingGangas = false;
-  gangaSort = 'discount';
+  gangaSort = 'market_diff';   // por bajada real, no por el % que declara la tienda
   gangaStore = '';
 
   isAdmin = false;
@@ -161,7 +161,16 @@ export class DealsStateService {
 
   loadGangas(): void {
     this.loadingGangas = true;
-    const params: Record<string, any> = { min_discount: 40, min_price: 50, sort: this.gangaSort, limit: 300, page: 1 };
+    // Una ganga es una bajada REAL frente al historico del propio producto, no
+    // el "-40%" que declara la tienda: de los 29.618 productos con descuento
+    // declarado >=40%, 20.180 (dos tercios) jamas han cambiado de precio — su
+    // "precio antes" es una etiqueta fija. Ordenar por ese descuento clavaba
+    // siempre los mismos articulos arriba. `below_market` los descarta solo:
+    // si el precio nunca baja, no puede estar por debajo de su propia mediana.
+    const params: Record<string, any> = {
+      min_price: 50, below_market: true, dedupe: true,
+      sort: this.gangaSort, limit: 300, page: 1,
+    };
     if (this.gangaStore) params['store'] = this.gangaStore;
     this.http.get<DealResponse>('/api/v1/deals', { params })
       .pipe(finalize(() => this.loadingGangas = false)).subscribe({

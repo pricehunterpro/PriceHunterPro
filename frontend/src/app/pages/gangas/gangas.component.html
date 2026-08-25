@@ -45,7 +45,8 @@
     <span>Ordenar</span>
     <select [ngModel]="s.gangaSort"
             (ngModelChange)="s.gangaSort=$event; s.loadGangas()">
-      <option value="discount">Mayor descuento</option>
+      <option value="market_diff">Mayor bajada real</option>
+      <option value="discount">Mayor descuento declarado</option>
       <option value="margin">Mayor margen</option>
       <option value="price_asc">Precio: menor a mayor</option>
       <option value="price_desc">Precio: mayor a menor</option>
@@ -61,7 +62,10 @@
       <img *ngIf="deal.imageUrl" [src]="deal.imageUrl" [alt]="deal.name"
            class="ganga-img" loading="lazy" />
       <div *ngIf="!deal.imageUrl" class="ganga-img-placeholder">📦</div>
-      <span class="ganga-discount-badge">-{{ deal.discountPct.toFixed(0) }}%</span>
+      <span class="ganga-discount-badge"
+            [title]="'Bajada respecto a su precio historico habitual (' + s.formatCurrency(deal.avgMarketPrice) + ')'">
+        -{{ (deal.mktDiffPct || deal.discountPct).toFixed(0) }}%
+      </span>
       <span class="ganga-store-badge" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
       <span class="ganga-market-chip" *ngIf="deal.belowMarket">🔥 bajo mercado</span>
     </div>
@@ -70,7 +74,10 @@
       <p class="ganga-brand">{{ deal.brand }}</p>
       <div class="ganga-price-row">
         <span class="ganga-price-now">{{ s.formatCurrency(deal.currentPrice) }}</span>
-        <span class="ganga-price-was">{{ s.formatCurrency(deal.originalPrice) }}</span>
+        <span class="ganga-price-was"
+              [title]="deal.avgMarketPrice ? 'Precio habitual de este producto' : 'Precio antes, segun la tienda'">
+          {{ s.formatCurrency(deal.avgMarketPrice || deal.originalPrice) }}
+        </span>
       </div>
       <a class="ganga-buy" [href]="deal.url" target="_blank" rel="noreferrer">Comprar ↗</a>
     </div>

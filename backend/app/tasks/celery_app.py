@@ -167,16 +167,20 @@ def _run_scrape_all_stores() -> dict:
             except Exception:
                 pass
 
-    # Las medianas historicas viven en la vista materializada `price_medians`
-    # para que la API no las recalcule sobre 1,9M filas en cada request. Este es
-    # el momento de refrescarla: los precios acaban de cambiar. CONCURRENTLY no
-    # bloquea las lecturas, pero exige AUTOCOMMIT (no admite transaccion).
+    # La API no calcula nada al vuelo: lee de dos vistas materializadas.
+    # `price_medians` guarda la mediana historica de cada producto y
+    # `deal_snapshot` las ofertas ya calculadas (margen, below_market, bajada
+    # real). Este es el momento de refrescarlas: los precios acaban de cambiar.
+    # Hasta que se refresquen, la web sigue mostrando los datos del scrape
+    # anterior. CONCURRENTLY no bloquea las lecturas, pero exige AUTOCOMMIT.
     try:
         _t_mv = time.time()
         with _engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            # El orden importa: deal_snapshot lee de price_medians.
             conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY price_medians"))
+            conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY deal_snapshot"))
         _push_log(r_log, "PriceMedians",
-                  f"Medianas refrescadas en {round(time.time() - _t_mv, 1)}s", "info")
+                  f"Medianas y ofertas refrescadas en {round(time.time() - _t_mv, 1)}s", "info")
     except Exception as exc:
         # Que falle el refresco no invalida el scrape: la vista sigue sirviendo
         # los valores del refresco anterior.
