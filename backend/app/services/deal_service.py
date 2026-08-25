@@ -68,9 +68,15 @@ _HARDCODED: list[dict[str, Any]] = [
 # diferencia frente a calcularlo al vuelo es irrelevante.
 # ══════════════════════════════════════════════════════════════════════════
 
+# NOT MATERIALIZED no es adorno: sin ello, `base AS (SELECT * FROM calc)` dejaba
+# calc referenciado dos veces y Postgres materializaba el CTE entero. El plan
+# era "Seq Scan on deal_snapshot (rows=96122)" en CADA peticion: copiaba las
+# 96.122 filas, las ordenaba y luego se quedaba con 50, ignorando los indices.
+# Costaba 1,91s contra la base y 10-33s desde el contenedor de Render. Con los
+# dos CTE apuntando directamente a la vista, la misma consulta tarda 0,17s.
 _BASE_CTE = """
-WITH calc AS (SELECT * FROM deal_snapshot),
-     base AS (SELECT * FROM calc)
+WITH calc AS NOT MATERIALIZED (SELECT * FROM deal_snapshot),
+     base AS NOT MATERIALIZED (SELECT * FROM deal_snapshot)
 """
 
 # El calculo que hay debajo es el que alimenta `deal_snapshot`; se conserva aqui
