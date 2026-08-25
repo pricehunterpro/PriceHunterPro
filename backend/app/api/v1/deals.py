@@ -107,3 +107,60 @@ def trigger_tiktok_image(
     from app.tasks.celery_app import generate_tiktok_content
     task = generate_tiktok_content.delay(min_discount=min_discount)
     return {"status": "accepted", "task_id": task.id, "message": f"Generando imagen TikTok (>= {min_discount}% descuento)"}
+
+
+@router.get("/diagnostico")
+def diagnostico() -> dict[str, object]:
+    """Mide desde DENTRO del contenedor para separar CPU de base de datos.
+
+    Temporal: existe para decidir si el plan free de Render es el cuello de
+    botella. Desde fuera las peticiones tardan entre 9 y 33 segundos, pero la
+    conexion y el TLS se resuelven en centesimas, asi que el tiempo se va en el
+    servidor. Esto dice en que parte.
+
+    No devuelve ningun dato del negocio, solo tiempos.
+    """
+    import time as _t
+    from sqlalchemy import text as _text
+    from sqlalchemy.orm import Session as _Session
+    from app.services.deal_service import _engine as _eng
+
+    medidas: dict[str, object] = {}
+
+    # 1) CPU pura, sin tocar red ni disco. En una maquina normal son ~0,15s.
+    #    Si aqui salen segundos, la CPU del plan esta estrangulada.
+    _i = _t.perf_counter()
+    _suma = 0
+    for _n in range(2_000_000):
+        _suma += _n * _n
+    medidas["cpu_bucle_2M"] = round(_t.perf_counter() - _i, 3)
+
+    # 2) Coste de conseguir conexion del pool
+    _i = _t.perf_counter()
+    with _Session(_eng) as _s:
+        medidas["abrir_sesion"] = round(_t.perf_counter() - _i, 3)
+
+        # 3) Ida y vuelta minima a Supabase
+        _i = _t.perf_counter()
+        _s.execute(_text("SELECT 1")).scalar()
+        medidas["select_1"] = round(_t.perf_counter() - _i, 3)
+
+        # 4) La consulta real contra la vista materializada
+        _i = _t.perf_counter()
+        _n_filas = _s.execute(_text("SELECT count(*) FROM deal_snapshot")).scalar()
+        medidas["count_snapshot"] = round(_t.perf_counter() - _i, 3)
+
+        # 5) Traer 300 filas: es lo que hace la vista de gangas
+        _i = _t.perf_counter()
+        _filas = _s.execute(_text(
+            "SELECT * FROM deal_snapshot ORDER BY discount_pct DESC NULLS LAST, id LIMIT 300"
+        )).fetchall()
+        medidas["traer_300_filas"] = round(_t.perf_counter() - _i, 3)
+
+    # 6) Convertir esas filas a diccionarios, que es trabajo de CPU
+    _i = _t.perf_counter()
+    _ = [dict(f._mapping) for f in _filas]
+    medidas["convertir_300_a_dict"] = round(_t.perf_counter() - _i, 3)
+
+    medidas["filas_en_deal_snapshot"] = _n_filas
+    return medidas
