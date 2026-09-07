@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -26,6 +26,31 @@ _WRITE_CHUNK = 500
 def _chunks(seq: list, n: int = _WRITE_CHUNK):
     for i in range(0, len(seq), n):
         yield seq[i:i + n]
+
+
+# Topes de las columnas Numeric de `store_products` / `price_history`.
+# Postgres NO trunca: si un valor no entra aborta la sentencia y con ella TODA la
+# transaccion, asi que un unico producto basura tumba el lote completo de la
+# tienda. Shopstar devolvia precios >= 10^8 y desde 2026-08-16 no guardaba ni una
+# fila (`numeric field overflow`, saved=0 en cada corrida).
+# El try/except del bucle NO lo atrapa: el overflow no ocurre al armar el dict
+# sino en el flush, ya fuera del try. Por eso hay que descartar la fila ANTES.
+_MAX_PRICE = Decimal(10) ** 8      # Numeric(10, 2)
+_MAX_DISCOUNT = Decimal(10) ** 3   # Numeric(5, 2)
+
+
+def _fits_columns(s: ScrapedProduct) -> bool:
+    """False si algun numero no cabe en su columna. Un precio de 100 millones es
+    basura del marketplace, no un producto real: se descarta y se cuenta como
+    error para que quede visible en el log de la corrida."""
+    try:
+        for value in (s.current_price, s.original_price, s.card_price):
+            if value is not None and abs(Decimal(value)) >= _MAX_PRICE:
+                return False
+        return (s.discount_percentage is None
+                or abs(Decimal(s.discount_percentage)) < _MAX_DISCOUNT)
+    except (InvalidOperation, TypeError, ValueError):
+        return False
 
 
 def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct]) -> tuple[int, int, list[str]]:
@@ -70,6 +95,9 @@ def bulk_upsert_store(session: Session, store: str, scraped: list[ScrapedProduct
     errors = 0
 
     for s in scraped:
+        if not _fits_columns(s):
+            errors += 1
+            continue
         try:
             sku = _normalize_sku(s.name, s.brand)
             prod = existing_prod.get(sku)
