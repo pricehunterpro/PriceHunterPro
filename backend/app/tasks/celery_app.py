@@ -40,6 +40,11 @@ app.conf.beat_schedule = {
     "gangas-08:00pm": {"task": "publish_top_deals",      "schedule": crontab(hour=20, minute=5)},
     # Generar imagen TikTok y enviar al admin a las 7am para subir manualmente
     "tiktok-07:00am": {"task": "generate_tiktok_content", "schedule": crontab(hour=7, minute=0)},
+    # Purga de price_history a 30 dias. La tarea existia desde el principio pero
+    # NUNCA estuvo agendada: la tabla acumulo 86 dias (2,79M filas) y cada refresco
+    # de `price_medians` — que corre tras CADA scrape — tenia que ordenarlas todas.
+    # 04:30 es el unico hueco sin scrape (los horarios son de America/Lima).
+    "limpieza-04:30am": {"task": "cleanup_old_prices", "schedule": crontab(hour=4, minute=30)},
 }
 
 # Sync engine for Celery tasks (psycopg2, not asyncpg)
@@ -176,6 +181,15 @@ def _run_scrape_all_stores() -> dict:
     try:
         _t_mv = time.time()
         with _engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            # Sin esto el refresco NUNCA terminaba: `price_medians` tarda >20 min
+            # (260k filas sobre 2,7M de price_history) y Supabase corta a los 2 min
+            # por defecto. Medido 2026-09-07: la vista llevaba 13 dias congelada y
+            # el unico rastro era un log en Redis, asi que la web servia datos
+            # viejos con el scraping funcionando perfecto.
+            # Tiene que ser SET de SESION, no SET LOCAL: CONCURRENTLY exige
+            # AUTOCOMMIT y sin transaccion el LOCAL no aplica. El pooler de
+            # Supabase si respeta el de sesion (verificado con SHOW).
+            conn.execute(text("SET statement_timeout = '1800s'"))
             # El orden importa: deal_snapshot lee de price_medians.
             conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY price_medians"))
             conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY deal_snapshot"))

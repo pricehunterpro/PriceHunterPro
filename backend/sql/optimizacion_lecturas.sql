@@ -100,3 +100,16 @@ CREATE INDEX IF NOT EXISTS ix_sp_ofertas
 -- queda). Si vuelve a apretar, lo siguiente es purgar price_history antiguo:
 -- hay ~572k filas de mas de 30 dias, pero eso degrada las medianas.
 --   DROP INDEX CONCURRENTLY IF EXISTS ix_price_history_sp_scraped;
+--
+-- ACTUALIZACION 2026-09-07: la purga ya NO es un plan de emergencia, esta
+-- agendada (`limpieza-04:30am` -> cleanup_old_prices, 30 dias de retencion).
+-- Motivo: price_history habia crecido a 86 dias / 2,79M filas porque la tarea
+-- existia desde el principio pero nadie la habia puesto en el beat_schedule. El
+-- REFRESH de price_medians tarda >24 min, y el PERCENTILE_CONT tiene que
+-- ORDENAR esas 2,79M filas: ese sort es justo lo que llena los archivos
+-- temporales que tumbaron la base. Purgar ataca disco y tiempo a la vez.
+--
+-- NO añadir un indice (store_product_id, price) para acelerar la mediana, que
+-- es la solucion "de libro": pesaria ~100-150 MB permanentes en una base que ya
+-- fallo por espacio y de la que hubo que soltar un indice. Primero purgar y
+-- volver a medir; el indice solo si despues sigue sin alcanzar.
