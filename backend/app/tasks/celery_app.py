@@ -181,7 +181,9 @@ def _run_scrape_all_stores() -> dict:
     try:
         _t_mv = time.time()
         with _engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            # Sin esto el refresco NUNCA terminaba: `price_medians` tarda >20 min
+            # Sin esto el refresco NUNCA terminaba. Medido 2026-09-07 con la tabla
+            # sin purgar: price_medians 2069s (34,5 min), deal_snapshot 27s. Todo
+            # el coste esta en la mediana; la segunda vista es gratis al lado.
             # (260k filas sobre 2,7M de price_history) y Supabase corta a los 2 min
             # por defecto. Medido 2026-09-07: la vista llevaba 13 dias congelada y
             # el unico rastro era un log en Redis, asi que la web servia datos
@@ -189,7 +191,7 @@ def _run_scrape_all_stores() -> dict:
             # Tiene que ser SET de SESION, no SET LOCAL: CONCURRENTLY exige
             # AUTOCOMMIT y sin transaccion el LOCAL no aplica. El pooler de
             # Supabase si respeta el de sesion (verificado con SHOW).
-            conn.execute(text("SET statement_timeout = '1800s'"))
+            conn.execute(text("SET statement_timeout = '3600s'"))
             # El orden importa: deal_snapshot lee de price_medians.
             conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY price_medians"))
             conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY deal_snapshot"))
