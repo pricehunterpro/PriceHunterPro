@@ -55,6 +55,16 @@ _sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+p
 _engine = create_engine(
     _sync_url, pool_pre_ping=True, pool_recycle=1800,
     executemany_mode="values_plus_batch",
+    # El session pooler de Supabase corta en 15 CLIENTES en total, y ese cupo se
+    # comparte con el backend de Render. Aqui los defaults de SQLAlchemy (5 + 10)
+    # son especialmente daninos: `_dispose_engine_on_fork` hace que cada uno de
+    # los 4 procesos hijos abra SU PROPIO pool, o sea hasta 4 x 15 = 60 clientes.
+    # Con el cupo agotado, produccion no consigue conexion y `deal_service` cae a
+    # los 7 productos de ejemplo (medido 2026-09-07: ECHECKOUTTIMEOUT).
+    # 1 + 1 basta: en prefork cada proceso ejecuta UNA tarea a la vez.
+    pool_size=1,
+    max_overflow=1,
+    pool_timeout=30,
 )
 # Nota: el statement_timeout (2 min por defecto en Supabase) se amplía por
 # transacción con `SET LOCAL` dentro de bulk_upsert_store; el pooler ignora el

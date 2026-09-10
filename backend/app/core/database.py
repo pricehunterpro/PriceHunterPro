@@ -43,6 +43,13 @@ try:
         echo=settings.environment == "development",
         future=True,
         connect_args=_connect_args(settings.database_url),
+        # Mismo motivo que en deal_service: el session pooler de Supabase corta
+        # en 15 clientes y los defaults de SQLAlchemy (5 + 10) se los comen
+        # enteros. El cupo lo comparten el backend local, el worker de Celery y
+        # el backend de Render, asi que cada engine tiene que pedir poco.
+        pool_size=2,
+        max_overflow=1,
+        pool_timeout=30,
     )
     AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 except ModuleNotFoundError:
