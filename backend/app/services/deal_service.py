@@ -38,6 +38,8 @@ def _hc(d: dict) -> dict:
     d.setdefault("avgMarketPrice", 0.0)
     d.setdefault("belowMarket", False)
     d.setdefault("mktDiffPct", 0.0)
+    d.setdefault("histCount", 0)
+    d.setdefault("confidence", "sin_verificar")
     d.setdefault("cardPrice", 0.0)
     d.setdefault("cardDiscountPct", 0.0)
     d.setdefault("cardGlitch", False)
@@ -177,7 +179,16 @@ def _f(valor: Any) -> float:
     return float(valor) if valor is not None else 0.0
 
 
+def _confianza(below_market: bool, hist_count: int) -> str:
+    """Cuánto respaldo tiene el "bajo mercado". Con 2 registros ya cuenta como
+    verificada, pero no pesa lo mismo que una mediana de 5 o más observaciones."""
+    if not below_market:
+        return "sin_verificar"
+    return "alta" if hist_count >= 5 else "media"
+
+
 def _fila_a_item(r: Any) -> dict[str, Any]:
+    hist_count = int(r.hist_count or 0)
     return {
         "id": r.id,
         "store": r.store,
@@ -195,6 +206,8 @@ def _fila_a_item(r: Any) -> dict[str, Any]:
         "avgMarketPrice": _f(r.avg_hist_price),
         "belowMarket": bool(r.below_market),
         "mktDiffPct": _f(r.mkt_diff_pct),
+        "histCount": hist_count,
+        "confidence": _confianza(bool(r.below_market), hist_count),
         "cardPrice": _f(r.card_price),
         "cardDiscountPct": _f(r.card_discount_pct),
         "cardGlitch": bool(r.card_glitch),

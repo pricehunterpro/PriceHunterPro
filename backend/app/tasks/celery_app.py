@@ -23,28 +23,23 @@ app.conf.accept_content = ["json"]
 app.conf.timezone = "America/Lima"
 app.conf.enable_utc = True
 app.conf.beat_schedule = {
-    "scrape-00:30am": {"task": "scrape_all_stores", "schedule": crontab(hour=0,  minute=30)},
-    "scrape-01:30am": {"task": "scrape_all_stores", "schedule": crontab(hour=1,  minute=30)},
-    "scrape-03:00am": {"task": "scrape_all_stores", "schedule": crontab(hour=3,  minute=0)},
-    "scrape-06:00am": {"task": "scrape_all_stores", "schedule": crontab(hour=6,  minute=0)},
-    "scrape-08:00am": {"task": "scrape_all_stores", "schedule": crontab(hour=8,  minute=0)},
-    "scrape-10:00am": {"task": "scrape_all_stores", "schedule": crontab(hour=10, minute=0)},
-    "scrape-12:00pm": {"task": "scrape_all_stores", "schedule": crontab(hour=12, minute=0)},
-    "scrape-03:00pm": {"task": "scrape_all_stores", "schedule": crontab(hour=15, minute=0)},
-    "scrape-06:00pm": {"task": "scrape_all_stores", "schedule": crontab(hour=18, minute=0)},
-    "scrape-08:00pm": {"task": "scrape_all_stores", "schedule": crontab(hour=20, minute=0)},
-    "scrape-10:00pm": {"task": "scrape_all_stores", "schedule": crontab(hour=22, minute=0)},
-    # Publicar top 5 gangas en Telegram a las 8am, 12pm y 8pm
-    "gangas-08:00am": {"task": "publish_top_deals",      "schedule": crontab(hour=8,  minute=0)},
-    "gangas-12:00pm": {"task": "publish_top_deals",      "schedule": crontab(hour=12, minute=5)},
-    "gangas-08:00pm": {"task": "publish_top_deals",      "schedule": crontab(hour=20, minute=5)},
+    # Un ciclo completo dura ~2h30 (scrapers ~1h45 + refresco de vistas ~45 min, medido
+    # 2026-10-20) y el singleton omite los disparos que caen mientras otro corre. Por eso
+    # son 3 scrapes espaciados 6h, y cada publicacion sale justo cuando uno acaba.
+    "scrape-05:30am": {"task": "scrape_all_stores", "schedule": crontab(hour=5,  minute=30)},
+    "scrape-11:30am": {"task": "scrape_all_stores", "schedule": crontab(hour=11, minute=30)},
+    "scrape-05:30pm": {"task": "scrape_all_stores", "schedule": crontab(hour=17, minute=30)},
+    # Publicar top 5 gangas en Telegram tras cada scrape (08:05, 14:05 y 20:05)
+    "gangas-08:05am": {"task": "publish_top_deals",      "schedule": crontab(hour=8,  minute=5)},
+    "gangas-02:05pm": {"task": "publish_top_deals",      "schedule": crontab(hour=14, minute=5)},
+    "gangas-08:05pm": {"task": "publish_top_deals",      "schedule": crontab(hour=20, minute=5)},
     # Generar imagen TikTok y enviar al admin a las 7am para subir manualmente
     "tiktok-07:00am": {"task": "generate_tiktok_content", "schedule": crontab(hour=7, minute=0)},
     # Purga de price_history a 30 dias. La tarea existia desde el principio pero
     # NUNCA estuvo agendada: la tabla acumulo 86 dias (2,79M filas) y cada refresco
     # de `price_medians` — que corre tras CADA scrape — tenia que ordenarlas todas.
-    # 04:30 es el unico hueco sin scrape (los horarios son de America/Lima).
-    "limpieza-04:30am": {"task": "cleanup_old_prices", "schedule": crontab(hour=4, minute=30)},
+    # 23:00 es hueco sin scrape: el ultimo ciclo (17:30) acaba hacia las 20:00 (America/Lima).
+    "limpieza-11:00pm": {"task": "cleanup_old_prices", "schedule": crontab(hour=23, minute=0)},
 }
 
 # Sync engine for Celery tasks (psycopg2, not asyncpg)
@@ -221,13 +216,12 @@ def _run_scrape_all_stores() -> dict:
             _push_log(r_log, "TelegramNotifier", f"{alerts_sent} alerta(s) enviada(s) a {channels} canal(es)", "info")
         else:
             _push_log(r_log, "TelegramNotifier", "Sin nuevas alertas calificadas", "info")
-    except Exception:
-        pass
+    except Exception as exc:
+        # Antes era `pass`: la consulta de alertas se cancelaba por timeout y nadie se enteraba.
+        logger.exception("_notify_new_alerts fallo")
+        _push_log(r_log, "TelegramNotifier", f"Error en alertas: {str(exc)[:120]}", "error")
 
-    next_slots = [
-        (0, 30), (1, 30), (3, 0), (6, 0), (8, 0),
-        (10, 0), (12, 0), (15, 0), (18, 0), (20, 0), (22, 0),
-    ]
+    next_slots = [(5, 30), (11, 30), (17, 30)]
     from datetime import datetime, timedelta
     from zoneinfo import ZoneInfo
     now_lima = datetime.now(ZoneInfo("America/Lima"))
@@ -263,16 +257,18 @@ def _notify_new_alerts(r_log=None) -> int:
 
     with Session(_engine) as session:
         rows = session.execute(text("""
+            -- Lee las medianas YA calculadas en la vista `price_medians` (se refresca tras
+            -- cada scrape). Antes agregaba `price_history` entera en cada llamada: con
+            -- millones de filas pasaba de 15 min, la consulta se cancelaba y el
+            -- `except: pass` de quien la llama lo ocultaba, asi que las alertas en tiempo
+            -- real no salian. La referencia pasa de promedio a MEDIANA, la misma que usan
+            -- la web y el publicador, e inmune a outliers de parsing.
             WITH hist AS (
                 SELECT store_product_id,
-                       AVG(price) AS avg_hist_price,
-                       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS med_hist_price,
-                       COUNT(*)   AS hist_count
-                FROM price_history
-                WHERE price > 0
-                  AND price < 100000            -- excluye precios basura (parsing corrupto)
-                  AND scraped_at < NOW() - INTERVAL '12 hours'
-                GROUP BY store_product_id
+                       median_price AS avg_hist_price,
+                       median_price AS med_hist_price,
+                       hist_count
+                FROM price_medians
             ),
             market AS (
                 SELECT p2.sku_normalized,
@@ -292,14 +288,20 @@ def _notify_new_alerts(r_log=None) -> int:
                     COALESCE(p.image_url, '') AS image_url,
                     COALESCE(p.brand, '')                       AS brand,
                     COALESCE(NULLIF(p.category, ''), 'General')  AS category,
-                    sp.current_price, sp.original_price, sp.card_price,
+                    sp.current_price,
+                    -- Sin precio anterior declarado, la referencia es la mediana historica
+                    -- propia: asi la bajada REAL se mide igual y no se divide por 0.
+                    CASE WHEN sp.original_price > sp.current_price
+                         THEN sp.original_price ELSE hc.med_hist_price END AS original_price,
+                    sp.card_price,
                     sp.discount_percentage, p.sku_normalized
                 FROM store_products sp
                 JOIN products p ON p.id = sp.product_id
                 LEFT JOIN hist hc ON hc.store_product_id = sp.id
                 WHERE sp.in_stock = true
                   AND sp.current_price > 0
-                  AND sp.original_price > sp.current_price        -- precio original SIEMPRE mayor al actual
+                  AND (
+                  (sp.original_price > sp.current_price        -- precio original SIEMPRE mayor al actual
                   AND (
                         sp.current_price >= 50                     -- piso normal S/50
                         OR (                                       -- …salvo GLITCH validado por historial ("a 1 sol")
@@ -328,6 +330,19 @@ def _notify_new_alerts(r_log=None) -> int:
                         )
                   )
                   AND (sp.original_price - sp.current_price) / sp.original_price >= 0.10  -- >=10% real
+                  )
+                  OR (
+                    -- OFERTA REAL SIN DESCUENTO DECLARADO: la tienda no publica precio
+                    -- anterior (la web mostraba "-0%"), pero el historial propio dice que
+                    -- esta >=40% bajo su mediana. Es justo la oferta que nadie mas muestra:
+                    -- ni cuenta como descuento en la tienda ni en los agregadores.
+                    hc.hist_count >= 3 AND hc.med_hist_price > 0
+                    AND hc.med_hist_price < 100000
+                    AND sp.current_price >= 50
+                    AND sp.current_price <= hc.med_hist_price * 0.60
+                    AND (hc.med_hist_price - sp.current_price) >= 100
+                  )
+                  )
                 ORDER BY COALESCE(p.sku_normalized, sp.id), sp.current_price ASC
             )
             SELECT c.id, c.store, c.name, c.url,
@@ -477,14 +492,32 @@ def publish_top_deals(limit: int = 5, min_discount: float = 40.0) -> dict:
     Selección estilo SUPERCUPON (ver app.services.deal_ranker): variedad por
     tramo de precio + marcas deseables + precio alcanzable primero. Ya NO ordena
     por `descuento% × ahorro_en_soles`, que solo sacaba productos de S/1500–5000.
+
+    Variedad día a día: la selección es determinística (el mismo pool siempre da
+    el mismo top-5), así que sin esto un producto que se mantiene en oferta varios
+    días sale 3 veces al día siempre igual. Se excluyen del ranking los productos
+    ya enviados dentro de la ventana `no_repetir_dias` (Configuración > Publicaciones),
+    salvo que eso deje muy pocos candidatos frescos (mejor repetir que enviar de menos).
     """
+    import redis as _redis
     from app.notifications.telegram import send_deals_batch, notify_admin
     from app.services.deal_ranker import fetch_candidates, seleccionar_top, CUPOS_5
+    from app.services.settings_service import get_setting
 
     with Session(_engine) as session:
         candidatos = fetch_candidates(session)
 
+    r = _redis.from_url(settings.redis_url)
+    dias_sin_repetir = float(get_setting("publicaciones", "no_repetir_dias", 3) or 0)
+    if dias_sin_repetir > 0:
+        frescos = [d for d in candidatos if not r.exists(f"tg_top_sent:{d['id']}")]
+        if len(frescos) >= limit:
+            candidatos = frescos
+
     seleccion = seleccionar_top(candidatos, total=limit, cupos=CUPOS_5 if limit <= 6 else None)
+    if dias_sin_repetir > 0:
+        for d in seleccion:
+            r.setex(f"tg_top_sent:{d['id']}", int(dias_sin_repetir * 86400), "1")
 
     deals = [
         {
@@ -498,14 +531,21 @@ def publish_top_deals(limit: int = 5, min_discount: float = 40.0) -> dict:
             "discountPct":   d["discountPct"],
             "marginPct":     round((d["originalPrice"] - d["currentPrice"]) / d["currentPrice"] * 100, 1) if d["currentPrice"] else 0,
             "url":           d.get("url", ""),
+            # Descuento real: contra su historial, no contra el "antes" de la tienda
+            "verificada":    bool(d.get("verificada")),
+            "histMedian":    d.get("histMedian", 0),
         }
         for d in seleccion
     ]
 
+    verificadas = sum(1 for d in deals if d["verificada"])
     sent_dev = send_deals_batch(deals, channel_id=settings.telegram_channel_dev) if settings.telegram_channel_dev else 0
     sent_prd = send_deals_batch(deals, channel_id=settings.telegram_channel_prd) if settings.telegram_channel_prd else 0
-    notify_admin(f"✅ PriceHunter: DEV {sent_dev}/{len(deals)} | PRD {sent_prd}/{len(deals)} deals publicados")
-    return {"sent_dev": sent_dev, "sent_prd": sent_prd, "total": len(deals)}
+    notify_admin(
+        f"✅ PriceHunter: DEV {sent_dev}/{len(deals)} | PRD {sent_prd}/{len(deals)} deals publicados "
+        f"({verificadas}/{len(deals)} con precio verificado contra su historial)"
+    )
+    return {"sent_dev": sent_dev, "sent_prd": sent_prd, "total": len(deals), "verificadas": verificadas}
 
 
 @app.task(name="generate_tiktok_content")

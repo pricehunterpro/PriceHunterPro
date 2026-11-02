@@ -44,14 +44,18 @@ def notify_new_alerts(new_alerts: list[dict], channel_id: str = "") -> bool:
     if not token or not channel_id:
         return False
 
+    from app.notifications.telegram import esc, recortar, pie_invitacion
+
     sent = False
     for alert in new_alerts[:10]:  # max 10 mensajes por raspado
-        name = alert.get("name", "")[:50]
-        store = alert.get("store", "").upper()
+        # parse_mode=HTML: sin escapar, un "&" o "<" en el nombre hacía que Telegram
+        # rechazara el mensaje y la alerta se perdía sin dejar rastro.
+        name = esc(recortar(alert.get("name", ""), 50))
+        store = esc(str(alert.get("store", "")).upper())
         price = alert.get("currentPrice", 0)
         avg = alert.get("avgMarketPrice", 0)
         diff = alert.get("mktDiffPct", 0)
-        url = alert.get("url", "")
+        url = esc(alert.get("url", ""))
         image_url = alert.get("imageUrl", "")
         card_price = alert.get("cardPrice", 0) or 0
         card_glitch = bool(alert.get("cardGlitch"))
@@ -91,6 +95,9 @@ def notify_new_alerts(new_alerts: list[dict], channel_id: str = "") -> bool:
             f"🏪 {store}   {etiqueta}\n"
             f"🔗 <a href=\"{url}\">Ver oferta</a>"
         )
+        pie = pie_invitacion(channel_id)
+        if pie:
+            msg += f"\n\n{pie}"
         ok = _post(token, channel_id, msg, image_url)
         if admin_id:
             _post(token, admin_id, msg, image_url)

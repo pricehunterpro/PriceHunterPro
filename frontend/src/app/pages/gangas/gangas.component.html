@@ -64,10 +64,10 @@
       <div *ngIf="!deal.imageUrl" class="ganga-img-placeholder">📦</div>
       <span class="ganga-discount-badge"
             [title]="'Bajada respecto a su precio historico habitual (' + s.formatCurrency(deal.avgMarketPrice) + ')'">
-        -{{ (deal.mktDiffPct || deal.discountPct).toFixed(0) }}%
+        -{{ deal.mktDiffPct.toFixed(0) }}%
       </span>
       <span class="ganga-store-badge" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
-      <span class="ganga-market-chip" *ngIf="deal.belowMarket">🔥 bajo mercado</span>
+      <span class="ganga-market-chip" *ngIf="deal.belowMarket">✔ {{ s.confidenceLabel(deal) }}</span>
     </div>
     <div class="ganga-body">
       <p class="ganga-name">{{ deal.name }}</p>

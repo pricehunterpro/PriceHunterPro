@@ -33,6 +33,16 @@ def _regex_deseables() -> str:
 # - Guards anti-basura de parsing (original corrupto = millones / ratios absurdos).
 # NOTA: los glitches extremos "a 1 sol" NO salen por acá (el guard *10 los corta);
 #       esos van por _notify_new_alerts, que los valida con la mediana histórica.
+#
+# DESCUENTO REAL: `original_price` es lo que la tienda DECLARA como precio antes
+# de la oferta, y suele estar inflado. `verificada` lo contrasta con el historial
+# propio (`price_medians`, la misma vista que lee la web): el precio actual está
+# al menos 15% bajo su mediana. Esas ofertas van primero en cada tramo; el resto
+# solo rellena vacantes. NO se descartan las que no se pueden verificar: una
+# liquidación recién empezada tiene poca historia y no por eso es falsa.
+UMBRAL_BAJO_HISTORIAL = 0.85     # igual que `below_market` de deal_service
+MIN_REGISTROS_HISTORIAL = 2
+
 _SQL_CANDIDATOS = """
     WITH base AS (
         SELECT DISTINCT ON (lower(btrim(p.name)))
@@ -41,35 +51,55 @@ _SQL_CANDIDATOS = """
                COALESCE(p.brand, '')                       AS brand,
                COALESCE(p.image_url, '')                   AS image_url,
                CAST(sp.current_price  AS float)            AS current_price,
-               CAST(sp.original_price AS float)            AS original_price,
-               CAST((sp.original_price - sp.current_price)
-                    / sp.original_price * 100 AS float)     AS disc,
+               -- Sin precio anterior declarado se usa la mediana propia como referencia
+               CAST(CASE WHEN sp.original_price > sp.current_price THEN sp.original_price ELSE m.median_price END AS float) AS original_price,
+               CAST(((CASE WHEN sp.original_price > sp.current_price THEN sp.original_price ELSE m.median_price END) - sp.current_price)
+                    / (CASE WHEN sp.original_price > sp.current_price THEN sp.original_price ELSE m.median_price END) * 100 AS float) AS disc,
                sp.url,
                ((lower(p.name) || ' ' || lower(COALESCE(p.brand, ''))) ~ :re_des) AS deseable,
+               CAST(COALESCE(m.median_price, 0) AS float)   AS hist_median,
+               COALESCE(m.hist_count, 0)                    AS hist_count,
+               -- COALESCE: un NULL ordenaría PRIMERO en `verificada DESC`
+               COALESCE(COALESCE(m.hist_count, 0) >= :min_hist
+                        AND m.median_price > 0
+                        AND sp.current_price <= m.median_price * :umbral_hist, false) AS verificada,
                CASE WHEN sp.current_price < 100 THEN 'barato'
                     WHEN sp.current_price < 300 THEN 'impulso'
                     WHEN sp.current_price < 1000 THEN 'medio'
                     ELSE 'premium' END                      AS tramo
         FROM store_products sp
         JOIN products p ON p.id = sp.product_id
+        LEFT JOIN price_medians m ON m.store_product_id = sp.id
         WHERE sp.in_stock = true
-          AND sp.original_price > sp.current_price
           AND sp.current_price  > 0
-          AND sp.original_price >= 60                        -- original mínimo
-          AND (sp.original_price - sp.current_price) >= 30   -- ahorro real >= S/30
-          AND sp.original_price < 100000                     -- guard parsing corrupto
-          AND sp.original_price < sp.current_price * 10      -- descarta ratios absurdos
-          AND (sp.original_price - sp.current_price) / sp.original_price >= 0.40
+          AND (
+            (    sp.original_price > sp.current_price
+             AND sp.original_price >= 60                        -- original mínimo
+             AND (sp.original_price - sp.current_price) >= 30   -- ahorro real >= S/30
+             AND sp.original_price < 100000                     -- guard parsing corrupto
+             AND sp.original_price < sp.current_price * 10      -- descarta ratios absurdos
+             AND (sp.original_price - sp.current_price) / sp.original_price >= 0.40)
+            OR
+            -- Oferta real SIN descuento declarado: la tienda no publica precio anterior
+            -- pero el historial propio la ubica >=40% bajo su mediana.
+            (    m.hist_count >= 3 AND m.median_price > 0
+             AND m.median_price < 100000
+             AND sp.current_price <= m.median_price * 0.60
+             AND (m.median_price - sp.current_price) >= 30)
+          )
         ORDER BY lower(btrim(p.name)), sp.current_price ASC
     ),
     ranked AS (
+        -- verificada primero: si no, las 200 plazas de cada tramo se las llevan
+        -- los descuentos inflados y las ofertas reales ni llegan a `seleccionar_top`.
         SELECT *, ROW_NUMBER() OVER (
-                   PARTITION BY tramo ORDER BY deseable DESC, disc DESC
+                   PARTITION BY tramo ORDER BY verificada DESC, deseable DESC, disc DESC
                ) AS rn_tramo
         FROM base
     )
     SELECT id, name, store, category, brand, image_url,
-           current_price, original_price, disc, url, deseable
+           current_price, original_price, disc, url, deseable,
+           hist_median, hist_count, verificada
     FROM ranked
     WHERE rn_tramo <= 200
 """
@@ -78,7 +108,11 @@ _SQL_CANDIDATOS = """
 def fetch_candidates(session) -> list[dict[str, Any]]:
     """Trae el pool de candidatos (todos los tramos) listo para `seleccionar_top`."""
     from sqlalchemy import text
-    rows = session.execute(text(_SQL_CANDIDATOS), {"re_des": _regex_deseables()}).fetchall()
+    rows = session.execute(text(_SQL_CANDIDATOS), {
+        "re_des": _regex_deseables(),
+        "min_hist": MIN_REGISTROS_HISTORIAL,
+        "umbral_hist": UMBRAL_BAJO_HISTORIAL,
+    }).fetchall()
     return [
         {
             "id":            r.id,
@@ -91,6 +125,11 @@ def fetch_candidates(session) -> list[dict[str, Any]]:
             "originalPrice": r.original_price,
             "discountPct":   r.disc,
             "url":           r.url,
+            "histMedian":    r.hist_median,
+            "histCount":     r.hist_count,
+            "verificada":    bool(r.verificada),
+            # % bajo su propio precio habitual: el número que se puede defender
+            "descReal":      round((1 - r.current_price / r.hist_median) * 100, 1) if r.verificada else 0.0,
         }
         for r in rows
     ]
@@ -182,6 +221,8 @@ def score(deal: dict[str, Any]) -> float:
     """Puntaje de deseabilidad/viralidad. YA no premia el ahorro en soles (eso
     era lo que empujaba solo lo caro)."""
     disc = float(deal.get("discountPct") or deal.get("disc") or 0)
+    if deal.get("verificada"):
+        disc = float(deal.get("descReal") or disc)   # el % contra el historial, no el declarado
     s = disc
     price = float(deal.get("currentPrice") or deal.get("current_price") or 0)
     if marca_es_deseable(deal.get("name"), deal.get("brand")):
@@ -224,13 +265,18 @@ def seleccionar_top(
         vistos.add(clave)
         d = dict(d)
         d["_deseable"] = marca_es_deseable(d.get("name"), d.get("brand"))
+        d["_verificada"] = bool(d.get("verificada"))
         d["_score"] = score(d)
         d["_tramo"] = _tramo(float(d.get("currentPrice") or d.get("current_price") or 0))
         limpio.append(d)
 
-    # Marcas DESEABLES primero (como el SUPERCUPON: casi todo es marca reconocible);
-    # dentro de cada grupo, por score. Así lo genérico solo rellena vacantes.
-    limpio.sort(key=lambda x: (not x["_deseable"], -x["_score"]))
+    # Primero las ofertas VERIFICADAS contra su propio historial (descuento real);
+    # luego marcas DESEABLES (como el SUPERCUPON: casi todo es marca reconocible);
+    # dentro de cada grupo, por score. Lo no verificado solo rellena vacantes.
+    def _orden(x: dict[str, Any]) -> tuple:
+        return (not x["_verificada"], not x["_deseable"], -x["_score"])
+
+    limpio.sort(key=_orden)
 
     seleccion: list[dict[str, Any]] = []
     por_tramo = {t: 0 for t in ("barato", "impulso", "medio", "premium")}
@@ -257,7 +303,7 @@ def seleccionar_top(
                 if len(seleccion) >= total:
                     break
 
-    seleccion.sort(key=lambda x: (not x["_deseable"], -x["_score"]))
+    seleccion.sort(key=_orden)
     return seleccion[:total]
 
 

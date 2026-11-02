@@ -45,7 +45,7 @@
            class="ganga-img" loading="lazy" />
       <div *ngIf="!deal.imageUrl" class="ganga-img-placeholder">📦</div>
       <span class="ganga-store-badge" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
-      <span class="ganga-discount-badge">-{{ deal.discountPct.toFixed(0) }}%</span>
+      <span class="ganga-discount-badge">-{{ (deal.mktDiffPct || deal.discountPct).toFixed(0) }}%</span>
       <span class="ganga-market-chip">🔥 {{ deal.mktDiffPct }}% bajo mercado</span>
     </div>
     <div class="ganga-body">

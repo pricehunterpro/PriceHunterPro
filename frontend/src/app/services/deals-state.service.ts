@@ -8,6 +8,7 @@ export interface Deal {
   url: string; currentPrice: number; originalPrice: number; discountPct: number;
   marginPct: number; imageUrl: string; inStock: boolean; scrapedAt: string;
   avgMarketPrice: number; belowMarket: boolean; mktDiffPct: number;
+  histCount?: number; confidence?: 'alta' | 'media' | 'sin_verificar';
 }
 export interface DealResponse {
   items: Deal[]; total: number;
@@ -36,7 +37,7 @@ export class DealsStateService {
   selectedCategory = '';
   selectedBrand = '';
   selectedStore = '';
-  sortBy = 'discount';
+  sortBy = 'market_diff';   // por bajada real; el % declarado de la tienda suele estar inflado
   currentPage = 1;
   totalItems = 0;
   readonly pageSize = 50;
@@ -197,7 +198,7 @@ export class DealsStateService {
   clearAllFilters(): void {
     this.searchQuery = ''; this.selectedCategory = '';
     this.selectedBrand = ''; this.selectedStore = '';
-    this.sortBy = 'discount'; this.currentPage = 1;
+    this.sortBy = 'market_diff'; this.currentPage = 1;
     this.loadDeals();
   }
 
@@ -224,6 +225,15 @@ export class DealsStateService {
       },
       error: () => { this.scraping = false; this.scrapeMsg = 'Error al conectar'; },
     });
+  }
+
+  /** % que se puede defender: la bajada contra el historial propio si está
+   *  verificada; si no, el declarado por la tienda (marcado como tal en la UI). */
+  realDiscount(d: Deal): number { return d.belowMarket ? d.mktDiffPct : d.discountPct; }
+
+  confidenceLabel(d: Deal): string {
+    if (!d.belowMarket) return 'Sin verificar';
+    return d.confidence === 'alta' ? 'Oferta real · confianza alta' : 'Oferta real · confianza media';
   }
 
   formatCurrency = (v: number) => `S/ ${v.toFixed(2)}`;

@@ -8,7 +8,7 @@
   <article class="stat-card red">
     <p class="stat-label">Mejor descuento</p>
     <h3>{{ s.stats?.bestDiscount ?? 0 }}%</h3>
-    <p class="stat-sub">en promociones activas</p>
+    <p class="stat-sub">declarado por la tienda</p>
   </article>
   <article class="stat-card accent">
     <p class="stat-label">Mayor margen</p>
@@ -18,7 +18,7 @@
   <article class="stat-card blue">
     <p class="stat-label">Precio mínimo</p>
     <h3>{{ s.formatCurrency(s.stats?.minPrice ?? 0) }}</h3>
-    <p class="stat-sub">promedio del portafolio</p>
+    <p class="stat-sub">el más barato en stock</p>
   </article>
 </section>
 
@@ -58,7 +58,8 @@
     <span>Ordenar</span>
     <select [ngModel]="s.sortBy"
             (ngModelChange)="s.sortBy=$event; s.submitFilters()">
-      <option value="discount">Mayor descuento</option>
+      <option value="market_diff">Mayor bajada real</option>
+        <option value="discount">Mayor descuento declarado</option>
       <option value="margin">Mayor margen</option>
       <option value="price_asc">Precio: menor a mayor</option>
       <option value="price_desc">Precio: mayor a menor</option>
@@ -90,7 +91,7 @@
     <div class="table-head">
       <span>#</span><span>Producto</span><span>Tienda</span><span>Marca</span>
       <span>Categoría</span><span class="right">P. orig.</span><span class="right">Precio</span>
-      <span class="center">Dscto.</span><span class="center">Margen</span><span>Comprar</span>
+      <span class="center">Dscto. real</span><span class="center">Margen</span><span>Comprar</span>
     </div>
     <div class="deal-row" *ngFor="let deal of s.deals; let i = index">
       <span class="rank"
@@ -101,7 +102,13 @@
       </span>
       <div class="product-cell">
         <strong>{{ deal.name }}</strong>
-        <span class="below-market-badge" *ngIf="deal.belowMarket">🔥 {{ deal.mktDiffPct }}% bajo mercado</span>
+        <span class="below-market-badge" *ngIf="deal.belowMarket"
+              [ngClass]="deal.confidence === 'alta' ? 'conf-alta' : 'conf-media'"
+              [title]="'Precio habitual: ' + s.formatCurrency(deal.avgMarketPrice) + ' (' + (deal.histCount ?? 0) + ' registros)'">
+          ✔ {{ s.confidenceLabel(deal) }} · {{ deal.mktDiffPct }}% bajo su precio habitual
+        </span>
+        <span class="unverified-badge" *ngIf="!deal.belowMarket"
+              title="El precio anterior lo declara la tienda; no hay historial que lo respalde">Sin verificar</span>
         <span class="stock" *ngIf="!deal.inStock">Sin stock</span>
       </div>
       <span class="store-pill" [ngClass]="s.getStoreBadgeClass(deal.store)">{{ deal.store }}</span>
@@ -109,7 +116,10 @@
       <span class="category-pill">{{ deal.category }}</span>
       <span class="muted right">{{ s.formatCurrency(deal.originalPrice) }}</span>
       <span class="price-value right">{{ s.formatCurrency(deal.currentPrice) }}</span>
-      <span class="discount-pill">-{{ deal.discountPct }}%</span>
+      <span class="discount-pill" [class.unverified]="!deal.belowMarket"
+            [title]="deal.belowMarket ? 'Bajada real frente a su precio habitual' : 'Descuento declarado por la tienda (sin verificar)'">
+        -{{ s.realDiscount(deal) }}%{{ deal.belowMarket ? '' : '*' }}
+      </span>
       <span class="margin-pill"
             [ngClass]="deal.marginPct >= 60 ? 'good' : deal.marginPct >= 30 ? 'warn' : 'bad'">
         +{{ deal.marginPct }}%

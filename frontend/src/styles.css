@@ -227,6 +227,14 @@ body {
   color: var(--accent); font-size: 0.72rem; font-weight: 600;
   padding: 2px 7px; border-radius: 999px; width: fit-content;
 }
+.below-market-badge.conf-media {
+  background: rgba(255,181,71,.12); border-color: rgba(255,181,71,.35); color: #ffb547;
+}
+.unverified-badge {
+  color: var(--muted2); font-size: 0.72rem; width: fit-content;
+  padding: 2px 7px; border-radius: 999px; border: 1px dashed rgba(255,255,255,.15);
+}
+.discount-pill.unverified { background: rgba(255,255,255,.05); color: var(--muted2); }
 .stock { color: #ff4d6d; font-size: 0.75rem; }
 
 .store-pill,

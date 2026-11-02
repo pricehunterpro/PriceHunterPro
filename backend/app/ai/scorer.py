@@ -16,6 +16,9 @@ _MID_ROTATION = {
 _TOP_STORES  = {"falabella", "ripley", "plazavea", "tottus"}
 _MID_STORES  = {"oechsle", "promart", "hiraoka", "shopstar"}
 
+# Fracción de los puntos de descuento/margen que se conserva sin historial que lo respalde.
+_PESO_SIN_VERIFICAR = 0.5
+
 
 def calculate_score(deal: dict[str, Any]) -> dict[str, Any]:
     """
@@ -35,6 +38,12 @@ def calculate_score(deal: dict[str, Any]) -> dict[str, Any]:
     score   = 0
     reasons: list[str] = []
 
+    # El descuento y el margen salen del "precio antes" que DECLARA la tienda, y
+    # suele estar inflado. Sin respaldo en el historial propio solo valen la
+    # mitad: así una oferta sin verificar nunca llega a "Buena Oferta" (60+).
+    verificada = avg_market > 0 and below_mkt
+    peso_declarado = 1.0 if verificada else _PESO_SIN_VERIFICAR
+
     # ── 1. Precio vs histórico (0-30 pts) ─────────────────────
     if avg_market > 0 and below_mkt:
         if mkt_diff >= 30:
@@ -49,32 +58,34 @@ def calculate_score(deal: dict[str, Any]) -> dict[str, Any]:
         else:
             score += 5
 
-    # ── 2. Descuento (0-25 pts) ───────────────────────────────
+    # ── 2. Descuento declarado (0-25 pts; la mitad si no está verificado) ──
     if discount >= 60:
-        score += 25
-        reasons.append(f"{discount:.0f}% descuento")
+        pts = 25
+        reasons.append(f"{discount:.0f}% descuento" + ("" if verificada else " (sin verificar)"))
     elif discount >= 40:
-        score += 18
-        reasons.append(f"{discount:.0f}% descuento")
+        pts = 18
+        reasons.append(f"{discount:.0f}% descuento" + ("" if verificada else " (sin verificar)"))
     elif discount >= 30:
-        score += 12
-        reasons.append(f"{discount:.0f}% descuento")
+        pts = 12
+        reasons.append(f"{discount:.0f}% descuento" + ("" if verificada else " (sin verificar)"))
     elif discount >= 20:
-        score += 8
+        pts = 8
     else:
-        score += 3
+        pts = 3
+    score += round(pts * peso_declarado)
 
-    # ── 3. Margen estimado (0-20 pts) ─────────────────────────
+    # ── 3. Margen estimado (0-20 pts; la mitad si no está verificado) ──
     if margin >= 50:
-        score += 20
+        pts = 20
         reasons.append(f"Margen {margin:.0f}%")
     elif margin >= 30:
-        score += 14
+        pts = 14
         reasons.append(f"Margen {margin:.0f}%")
     elif margin >= 15:
-        score += 8
+        pts = 8
     else:
-        score += 2
+        pts = 2
+    score += round(pts * peso_declarado)
 
     # ── 4. Stock disponible (0-10 pts) ────────────────────────
     if in_stock:

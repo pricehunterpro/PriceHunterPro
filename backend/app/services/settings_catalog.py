@@ -187,6 +187,18 @@ _PUBLICACIONES = [
        "mejores ofertas del momento. Lo generado, aprobado, programado o publicado "
        "nunca se toca. 0 desactiva el refresco automático.",
        minimum=0, maximum=168, unit="h", source="publicador._refrescar_si_toca"),
+    _s("publicaciones", "no_repetir_dias", "No repetir producto en el top por", "number", 3,
+       "Un producto ya enviado en el top-5 de Telegram queda excluido del ranking "
+       "automático durante este tiempo, aunque siga siendo la mejor oferta. Sin esto, "
+       "una oferta que se mantiene varios días vuelve a salir 3 veces al día siempre "
+       "igual. 0 desactiva la exclusión (permite repetir).",
+       minimum=0, maximum=30, unit="días", source="celery_app.publish_top_deals"),
+    _s("publicaciones", "enlace_canal", "Enlace para unirse al canal", "url", "",
+       "Enlace de invitación (https://t.me/…) que cierra cada oferta enviada a Telegram "
+       "con «Únete al canal». Cuando alguien reenvía una oferta, ese enlace es lo que "
+       "convierte al que la recibe en miembro. Vacío = se deduce del canal si es un "
+       "@usuario; si el canal es un ID numérico, sin este enlace no se agrega la invitación.",
+       source="notifications.telegram.enlace_canal"),
 ]
 
 # ── 5. MARKETING ─────────────────────────────────────────────────────────────
