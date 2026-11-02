@@ -34,6 +34,7 @@ _META = [
     ("sodimac",      "Sodimac",       "Requests", "https://www.sodimac.com.pe/sodimac-pe",     "Activo"),
     ("mercadolibre", "Mercado Libre", "Requests", "https://www.mercadolibre.com.pe",           "Activo"),
     ("shopstar",     "Shopstar",      "VTEX",     "https://www.shopstar.pe",                   "Activo"),
+    ("hiraoka",      "Hiraoka",       "Requests", "https://hiraoka.com.pe",                    "Activo"),
     ("tottus",       "Tottus",        "Requests", "https://www.tottus.com.pe/tottus-pe",       "Activo"),
 ]
 _SCHEDULES = ["Cada 15 minutos", "Cada 30 minutos", "Cada hora", "Cada 2 horas", "Cada 6 horas", "Manual"]
@@ -250,7 +251,7 @@ _SCRAPER_CLASSES = {
     "falabella": "FalabellaScraper", "ripley": "RipleyScraper", "plazavea": "PlazaVeaScraper",
     "oechsle": "OechsleScraper", "estilos": "EstilosScraper", "sodimac": "SodimacScraper",
     "tottus": "TottusScraper", "mercadolibre": "MercadoLibreScraper",
-    "shopstar": "ShopstarScraper",
+    "shopstar": "ShopstarScraper", "hiraoka": "HiraokaScraper",
 }
 
 
